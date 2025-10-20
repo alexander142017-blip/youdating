@@ -57,7 +57,7 @@ const uploadFile = async ({ file }) => {
     const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `uploads/${fileName}`;
 
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from('public')
       .upload(filePath, file);
 

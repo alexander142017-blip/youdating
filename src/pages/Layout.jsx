@@ -17,7 +17,7 @@ import {
   SidebarTrigger,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { base44 } from "@/api/base44Client";
+import { base44 } from "@/api/base44Compat";
 import { useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
 

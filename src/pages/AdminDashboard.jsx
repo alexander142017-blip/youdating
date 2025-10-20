@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { getCurrentUser } from '@/api/auth';
+import { Report, User } from '@/api/helpers';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -104,7 +105,7 @@ export default function AdminDashboard() {
 
   const { data: currentUser } = useQuery({
     queryKey: ['current-user'],
-    queryFn: () => base44.auth.me(),
+    queryFn: getCurrentUser,
     onSuccess: (user) => {
       if (user?.role !== 'admin') {
         navigate(createPageUrl('Discover'));
@@ -115,19 +116,19 @@ export default function AdminDashboard() {
 
   const { data: reports, isLoading: isLoadingReports } = useQuery({
     queryKey: ['all-reports'],
-    queryFn: () => base44.entities.Report.list('-created_date'),
+    queryFn: () => Report.list('-created_date'),
     enabled: currentUser?.role === 'admin',
   });
 
   const { data: users, isLoading: isLoadingUsers } = useQuery({
     queryKey: ['all-users-admin'],
-    queryFn: () => base44.entities.User.list(),
+    queryFn: () => User.list(),
     enabled: currentUser?.role === 'admin',
     staleTime: 5 * 60 * 1000, 
   });
   
   const updateUserMutation = useMutation({
-      mutationFn: ({userId, data}) => base44.entities.User.update(userId, data),
+      mutationFn: ({userId, data}) => User.update(userId, data),
       onSuccess: (data, variables) => {
           toast.success(`User ${variables.userId} updated.`);
           queryClient.invalidateQueries({queryKey: ['all-users-admin']});
@@ -136,7 +137,7 @@ export default function AdminDashboard() {
   });
   
   const deleteUserMutation = useMutation({
-      mutationFn: (userId) => base44.entities.User.delete(userId),
+      mutationFn: (userId) => User.delete(userId),
       onSuccess: () => {
           toast.success("User has been deleted.");
           queryClient.invalidateQueries({queryKey: ['all-users-admin']});

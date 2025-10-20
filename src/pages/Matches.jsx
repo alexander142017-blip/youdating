@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { getCurrentUser } from "@/api/auth";
+import { Match, User, Block } from "@/api/helpers";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Heart, MapPin, MessageCircle, Star } from "lucide-react";
@@ -28,7 +29,7 @@ export default function MatchesPage() {
   useEffect(() => {
     const loadCurrentUser = async () => {
       try {
-        const user = await base44.auth.me();
+        const user = await getCurrentUser();
         setCurrentUser(user);
       } catch (error) {
         console.error("Error loading user:", error);
@@ -39,7 +40,7 @@ export default function MatchesPage() {
 
   const { data: matches, isLoading } = useQuery({
     queryKey: ['mutual-matches', currentUser?.email], // Updated queryKey
-    queryFn: () => base44.entities.Match.filter({ 
+    queryFn: () => Match.filter({ 
       is_mutual: true,
       $or: [
         { user1_email: currentUser?.email },
@@ -51,14 +52,14 @@ export default function MatchesPage() {
 
   const { data: allUsers } = useQuery({
     queryKey: ['all-users'],
-    queryFn: () => base44.entities.User.list(),
+    queryFn: () => User.list(),
     enabled: !!currentUser,
   });
   
   // New query for blocks
   const { data: blocks } = useQuery({
     queryKey: ['blocks', currentUser?.email],
-    queryFn: () => base44.entities.Block.list(),
+    queryFn: () => Block.list(),
     enabled: !!currentUser,
     initialData: [],
   });

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { base44 } from '@/api/base44Client';
+import { getCurrentUser, updateCurrentUser } from '@/api/auth';
+import { uploadFile } from '@/api/helpers';
+import { AnalyticsEvents } from '@/api/helpers';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -17,7 +19,7 @@ const MAX_PHOTOS = 6;
 const MAX_INTERESTS = 10;
 
 const trackEvent = (userEmail, eventType, context = {}) => {
-    base44.entities.AnalyticsEvents.create({
+    AnalyticsEvents.create({
         user_email: userEmail,
         type: eventType,
         context,
@@ -38,7 +40,7 @@ export default function EditProfilePage() {
 
     const { data: currentUser, isLoading: isLoadingUser } = useQuery({
         queryKey: ['current-user-edit'],
-        queryFn: () => base44.auth.me(),
+        queryFn: getCurrentUser,
         onSuccess: (user) => {
             if (user) {
                 setFormData({
@@ -51,7 +53,7 @@ export default function EditProfilePage() {
     });
 
     const updateProfileMutation = useMutation({
-        mutationFn: (updatedData) => base44.auth.updateMe(updatedData),
+        mutationFn: (updatedData) => updateCurrentUser(updatedData),
         onSuccess: () => {
             trackEvent(currentUser.email, 'profileEdited');
             toast.success('Profile updated successfully!');
@@ -65,7 +67,7 @@ export default function EditProfilePage() {
     });
 
     const uploadFileMutation = useMutation({
-        mutationFn: (file) => base44.integrations.Core.UploadFile({ file }),
+        mutationFn: (file) => uploadFile(file),
         onSuccess: (data) => {
             if (formData.photos.length < MAX_PHOTOS) {
                 setFormData(prev => ({ ...prev, photos: [...prev.photos, data.file_url] }));

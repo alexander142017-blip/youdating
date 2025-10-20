@@ -1,6 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { base44 } from '@/api/base44Client';
+import { getCurrentUser, updateCurrentUser } from '@/api/auth';
+import { uploadFile } from '@/api/helpers';
+import { AnalyticsEvents } from '@/api/helpers';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -71,7 +73,7 @@ const Step2_Photos = ({ data, setData }) => {
         if (file) {
             setIsUploading(true);
             try {
-                const { file_url } = await base44.integrations.Core.UploadFile({ file });
+                const { file_url } = await uploadFile(file);
                 if (data.photos.length < 6) {
                     setData(prev => ({ ...prev, photos: [...prev.photos, file_url] }));
                 } else {
@@ -168,7 +170,7 @@ const Step5_Permissions = () => (
 // #endregion
 
 const trackEvent = (userEmail, eventType, context = {}) => {
-    base44.entities.AnalyticsEvents.create({
+    AnalyticsEvents.create({
         user_email: userEmail,
         type: eventType,
         context,
@@ -199,7 +201,7 @@ export default function OnboardingPage() {
     useEffect(() => {
         const fetchUser = async () => {
             try {
-                const currentUser = await base44.auth.me();
+                const currentUser = await getCurrentUser();
                 setUser(currentUser);
                 if (currentUser.profile_completed) {
                     navigate(createPageUrl('Discover'));
@@ -215,7 +217,7 @@ export default function OnboardingPage() {
     }, [navigate]);
 
     const updateUserMutation = useMutation({
-        mutationFn: (data) => base44.auth.updateMe(data),
+        mutationFn: (data) => updateCurrentUser(data),
         onSuccess: () => {
             trackEvent(user.email, 'onboardingComplete');
             setIsSubmitting(false);

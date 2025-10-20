@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { getCurrentUser, updateCurrentUser, logout } from "@/api/auth";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -116,7 +116,7 @@ export default function ProfilePage() {
   useEffect(() => {
     const loadCurrentUser = async () => {
       try {
-        const user = await base44.auth.me();
+        const user = await getCurrentUser();
         setCurrentUser(user);
         setFormData({
           discovery_show_me: user.discovery_show_me || "everyone",
@@ -146,7 +146,7 @@ export default function ProfilePage() {
   }, []);
 
   const updateProfileMutation = useMutation({
-    mutationFn: (data) => base44.auth.updateMe(data),
+    mutationFn: (data) => updateCurrentUser(data),
     onSuccess: (updatedUser) => {
       queryClient.setQueryData(['current-user'], (old) => ({...old, ...updatedUser}));
       setCurrentUser(prev => ({...prev, ...updatedUser}));
@@ -168,7 +168,7 @@ export default function ProfilePage() {
   };
 
   const handleLogout = () => {
-    base44.auth.logout();
+    logout();
   };
   
   const handleRestorePurchases = () => {

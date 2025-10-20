@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
+import { Block, User } from '@/api/helpers';
 import {
   Dialog,
   DialogContent,
@@ -18,18 +18,18 @@ export default function BlockedUsersModal({ isOpen, onClose, currentUser }) {
 
   const { data: blocks, isLoading: isLoadingBlocks } = useQuery({
     queryKey: ['blocks', currentUser?.email],
-    queryFn: () => base44.entities.Block.list(),
+    queryFn: () => Block.list(),
     enabled: !!currentUser && isOpen,
   });
   
   const { data: allUsers, isLoading: isLoadingUsers } = useQuery({
     queryKey: ['all-users'],
-    queryFn: () => base44.entities.User.list(),
+    queryFn: () => User.list(),
     enabled: !!currentUser && isOpen && !!blocks && blocks.length > 0,
   });
 
   const unblockMutation = useMutation({
-    mutationFn: (blockId) => base44.entities.Block.delete(blockId),
+    mutationFn: (blockId) => Block.delete(blockId),
     onSuccess: () => {
       toast.success("User unblocked.");
       queryClient.invalidateQueries({ queryKey: ['blocks'] });

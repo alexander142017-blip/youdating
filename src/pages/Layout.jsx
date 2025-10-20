@@ -17,7 +17,7 @@ import {
   SidebarTrigger,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { base44 } from "@/api/base44Client";
+import { getCurrentUser } from "@/api/auth";
 import { useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -73,7 +73,7 @@ export default function Layout({ children, currentPageName }) {
 
   const { data: currentUser, isLoading, isError } = useQuery({
     queryKey: ['current-user'],
-    queryFn: () => base44.auth.me(),
+    queryFn: getCurrentUser,
     staleTime: 5 * 60 * 1000,
     retry: false, // Don't retry if user is not logged in
   });
@@ -84,7 +84,6 @@ export default function Layout({ children, currentPageName }) {
     // For this app, we assume all pages are protected.
     if (!isLoading && isError && currentPageName !== 'Onboarding') {
         // In a real app with a public login page, you'd redirect here.
-        // base44 handles this automatically.
         return;
     }
 

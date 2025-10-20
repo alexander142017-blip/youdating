@@ -90,6 +90,9 @@ function PagesContent() {
                 <Route path="/AnalyticsDashboard" element={<AnalyticsDashboard />} />
                 
                 <Route path="/LikesYou" element={<LikesYou />} />
+
+                + <Route path="/debug" element={<DebugPing />} />
+
                 
             </Routes>
         </Layout>

@@ -2,6 +2,7 @@ import { createClient } from '@base44/sdk';
 
 const isDev = import.meta.env.DEV;
 
+// Mock Base44 client locally or on external hosts
 export const base44 = isDev
   ? {
       auth: {
@@ -22,7 +23,21 @@ export const base44 = isDev
         Purchase: { create: async () => null },
       },
     }
-  : createClient({
-      appId: "68f52ba679ecae0017fef47e",
-      requiresAuth: true,
-    });
+  : {
+      auth: {
+        me: async () => ({
+          id: 1,
+          name: "Production Test User",
+          email: "prod@youdating.app",
+          isPremium: false,
+          premiumPlan: null,
+        }),
+        updateMe: async (data) => ({ ...data }),
+        logout: async () => console.log("Mock logout (production mode)"),
+      },
+      entities: {
+        AnalyticsEvents: { create: async () => null },
+        Config: { list: async () => [] },
+        Purchase: { create: async () => null },
+      },
+    };

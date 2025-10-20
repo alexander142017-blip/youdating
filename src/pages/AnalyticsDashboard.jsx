@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
-import { base44 } from '@/api/base44Client';
+import { getCurrentUser } from '@/api/auth';
+import { listProfiles } from '@/api/profiles';
+import { filterAnalyticsEvents } from '@/api/analytics';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -46,7 +48,7 @@ export default function AnalyticsDashboard() {
 
     const { data: currentUser } = useQuery({
         queryKey: ['current-user'],
-        queryFn: () => base44.auth.me(),
+        queryFn: getCurrentUser,
         onSuccess: (user) => {
             if (user?.role !== 'admin') {
                 navigate(createPageUrl('Discover'));
@@ -57,13 +59,13 @@ export default function AnalyticsDashboard() {
 
     const { data: allUsers, isLoading: isLoadingUsers } = useQuery({
         queryKey: ['all-users-admin-analytics'],
-        queryFn: () => base44.entities.User.list(),
+        queryFn: listProfiles,
         enabled: !!currentUser && currentUser.role === 'admin',
     });
 
     const { data: events, isLoading: isLoadingEvents } = useQuery({
         queryKey: ['analytics-events-7d'],
-        queryFn: () => base44.entities.AnalyticsEvents.filter({ created_date: { $gte: subDays(new Date(), 7).toISOString() } }),
+        queryFn: () => filterAnalyticsEvents({ created_date: { $gte: subDays(new Date(), 7).toISOString() } }),
         enabled: !!currentUser && currentUser.role === 'admin',
     });
 

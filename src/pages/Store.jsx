@@ -1,6 +1,10 @@
 
 import React, { useMemo, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { getCurrentUser } from "@/api/auth";
+import { upsertProfile } from "@/api/profiles";
+import { createPurchase } from "@/api/purchases";
+import { listConfig } from "@/api/config";
+import { createAnalyticsEvent } from "@/api/analytics";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/card";
@@ -11,7 +15,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
 const trackEvent = (userEmail, eventType, context = {}) => {
-    base44.entities.AnalyticsEvents.create({
+    createAnalyticsEvent({
         user_email: userEmail,
         type: eventType,
         context,
@@ -60,12 +64,12 @@ export default function StorePage() {
 
   const { data: currentUser } = useQuery({
       queryKey: ['current-user'],
-      queryFn: () => base44.auth.me()
+      queryFn: getCurrentUser
   });
   
   const { data: configData, isLoading: isLoadingConfig } = useQuery({
       queryKey: ['app-config'],
-      queryFn: () => base44.entities.Config.list(),
+      queryFn: listConfig,
   });
 
   const config = useMemo(() => {
@@ -78,7 +82,7 @@ export default function StorePage() {
   }, [configData]);
 
   const updateUserMutation = useMutation({
-    mutationFn: (data) => base44.auth.updateMe(data),
+    mutationFn: (data) => upsertProfile(currentUser?.id, data),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['current-user'] });
       
@@ -110,7 +114,7 @@ export default function StorePage() {
   });
   
   const createPurchaseRecordMutation = useMutation({
-      mutationFn: (data) => base44.entities.Purchase.create(data),
+      mutationFn: (data) => createPurchase({ userId: currentUser?.id, ...data }),
       onError: () => {} // Fail silently on analytics
   });
 

@@ -1,6 +1,13 @@
 
 import React, { useState, useEffect, useMemo } from "react";
-import { base44 } from "@/api/base44Client";
+import { getCurrentUser } from "@/api/auth";
+import { listProfiles, upsertProfile } from "@/api/profiles";
+import { createLike, filterLikes } from "@/api/likes";
+import { createMatch, filterMatches } from "@/api/matches";
+import { listBlocks } from "@/api/blocks";
+import { listConfig } from "@/api/config";
+import { SendEmail } from "@/api/integrations-local";
+import { createAnalyticsEvent } from "@/api/analytics";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -39,7 +46,7 @@ function getDistance(lat1, lon1, lat2, lon2, units = 'miles') {
 }
 
 const trackEvent = (userEmail, eventType, context = {}) => {
-    base44.entities.AnalyticsEvents.create({
+    createAnalyticsEvent({
         user_email: userEmail,
         type: eventType,
         context,
@@ -60,7 +67,7 @@ export default function DiscoverPage() {
 
   const { data: currentUser, refetch: refetchCurrentUser } = useQuery({
     queryKey: ['current-user'],
-    queryFn: () => base44.auth.me(),
+    queryFn: getCurrentUser,
     staleTime: 5 * 60 * 1000,
     onSuccess: (user) => {
       if (!user.profile_completed) {
@@ -77,7 +84,7 @@ export default function DiscoverPage() {
   
   const { data: configData, isLoading: isLoadingConfig } = useQuery({
       queryKey: ['app-config'],
-      queryFn: () => base44.entities.Config.list(),
+      queryFn: listConfig,
   });
 
   const config = useMemo(() => {
@@ -91,21 +98,21 @@ export default function DiscoverPage() {
 
   const { data: allUsers, isLoading: isLoadingUsers } = useQuery({
     queryKey: ['users'],
-    queryFn: () => base44.entities.User.list(),
+    queryFn: listProfiles,
     enabled: !!currentUser,
     initialData: [],
   });
 
   const { data: myLikes, isLoading: isLoadingLikes } = useQuery({
     queryKey: ['my-likes', currentUser?.email],
-    queryFn: () => base44.entities.Like.filter({ from_email: currentUser?.email }),
+    queryFn: () => filterLikes({ from_email: currentUser?.email }),
     enabled: !!currentUser,
     initialData: [],
   });
 
   const { data: existingMatches, isLoading: isLoadingMatches } = useQuery({
     queryKey: ['my-matches'],
-    queryFn: () => base44.entities.Match.filter({
+    queryFn: () => filterMatches({
       is_mutual: true, // Only mutual matches
       $or: [
         { user1_email: currentUser?.email },
@@ -118,13 +125,13 @@ export default function DiscoverPage() {
   
   const { data: blocks } = useQuery({
     queryKey: ['blocks'],
-    queryFn: () => base44.entities.Block.list(),
+    queryFn: listBlocks,
     enabled: !!currentUser,
     initialData: [],
   });
 
   const sendEmailMutation = useMutation({
-    mutationFn: (emailData) => base44.integrations.Core.SendEmail(emailData),
+    mutationFn: SendEmail,
     onError: (error) => {
       // Log error but don't block the user experience
       console.error("Failed to send notification email:", error);
@@ -132,7 +139,7 @@ export default function DiscoverPage() {
   });
 
   const updateUserMutation = useMutation({
-    mutationFn: (data) => base44.auth.updateMe(data),
+    mutationFn: (data) => upsertProfile(currentUser?.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['current-user'] });
       refetchCurrentUser();
@@ -143,7 +150,7 @@ export default function DiscoverPage() {
   });
   
   const likeMutation = useMutation({
-    mutationFn: (data) => base44.entities.Like.create(data),
+    mutationFn: createLike,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-likes'] });
     },
@@ -154,7 +161,7 @@ export default function DiscoverPage() {
   });
 
   const matchMutation = useMutation({
-    mutationFn: (data) => base44.entities.Match.create(data),
+    mutationFn: createMatch,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-matches'] });
     },
@@ -279,7 +286,7 @@ export default function DiscoverPage() {
     // If it was a like, check for a mutual match
     if (liked) {
       // Check if the other person has already liked us
-      const theyLikedUs = await base44.entities.Like.filter({
+      const theyLikedUs = await filterLikes({
         from_email: currentProfile.email,
         to_email: currentUser.email,
         is_like: true,

@@ -28,7 +28,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { MoreVertical, Shield, Flag } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
+import { createBlock } from '@/api/blocks';
+import { createReport } from '@/api/reports';
+import { createAnalyticsEvent } from '@/api/analytics';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -36,7 +38,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 const trackEvent = (userEmail, eventType, context = {}) => {
-    base44.entities.AnalyticsEvents.create({
+    createAnalyticsEvent({
         user_email: userEmail,
         type: eventType,
         context,
@@ -51,7 +53,7 @@ export default function BlockAndReport({ targetUser, currentUser, matchId }) {
   const [reportDetails, setReportDetails] = useState("");
 
   const blockMutation = useMutation({
-    mutationFn: (data) => base44.entities.Block.create(data),
+    mutationFn: createBlock,
     onSuccess: () => {
       trackEvent(currentUser.email, 'userBlocked', { targetId: targetUser.id });
       toast.success(`${targetUser.full_name} has been blocked.`);
@@ -64,7 +66,7 @@ export default function BlockAndReport({ targetUser, currentUser, matchId }) {
   });
 
   const reportMutation = useMutation({
-    mutationFn: (data) => base44.entities.Report.create(data),
+    mutationFn: createReport,
     onSuccess: (response, variables) => { // 'variables' contains the data sent to the mutationFn
       trackEvent(currentUser.email, 'reportSubmitted', { targetId: targetUser.id, reason: variables.reason });
       toast.success(`Report for ${targetUser.full_name} has been submitted.`);

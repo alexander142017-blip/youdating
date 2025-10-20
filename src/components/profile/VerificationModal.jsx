@@ -8,7 +8,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Camera, CheckCircle, Shield } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { UploadFile } from "@/api/integrations-local";
+import { upsertProfile } from "@/api/profiles";
+import { getCurrentUser } from "@/api/auth";
 
 export default function VerificationModal({ isOpen, onClose, onVerified }) {
   const videoRef = useRef(null);
@@ -70,9 +72,10 @@ export default function VerificationModal({ isOpen, onClose, onVerified }) {
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
       const file = new File([blob], `verification-${Date.now()}.jpg`, { type: 'image/jpeg' });
       
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const { file_url } = await UploadFile({ file });
       
-      await base44.auth.updateMe({
+      const currentUser = await getCurrentUser();
+      await upsertProfile(currentUser?.id, {
         is_verified: true,
         verification_photo: file_url,
         verification_date: new Date().toISOString()

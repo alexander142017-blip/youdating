@@ -1,6 +1,8 @@
 
 import React, { useState, useMemo } from "react";
-import { base44 } from "@/api/base44Client";
+import { getCurrentUser } from "@/api/auth";
+import { filterLikes, createLike } from "@/api/likes";
+import { listProfiles } from "@/api/profiles";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardTitle, CardDescription } from "@/components/ui/card";
 import { Heart, Sparkles, Lock } from "lucide-react";
@@ -16,12 +18,12 @@ export default function LikesYouPage() {
 
     const { data: currentUser } = useQuery({
         queryKey: ['current-user'],
-        queryFn: () => base44.auth.me(),
+        queryFn: getCurrentUser,
     });
 
     const { data: inboundLikes, isLoading: isLoadingLikes } = useQuery({
         queryKey: ['inbound-likes', currentUser?.email],
-        queryFn: () => base44.entities.Like.filter({
+        queryFn: () => filterLikes({
             to_email: currentUser?.email,
             is_like: true
         }),
@@ -30,13 +32,13 @@ export default function LikesYouPage() {
 
     const { data: myActions } = useQuery({
         queryKey: ['my-likes', currentUser?.email],
-        queryFn: () => base44.entities.Like.filter({ from_email: currentUser?.email }),
+        queryFn: () => filterLikes({ from_email: currentUser?.email }),
         enabled: !!currentUser,
     });
 
     const { data: allUsers, isLoading: isLoadingUsers } = useQuery({
         queryKey: ['all-users-likes-you'],
-        queryFn: () => base44.entities.User.list(),
+        queryFn: listProfiles,
         enabled: !!inboundLikes && inboundLikes.length > 0
     });
 
@@ -52,7 +54,7 @@ export default function LikesYouPage() {
     }, [inboundLikes, allUsers, myActions]);
 
     const likeMutation = useMutation({
-        mutationFn: (data) => base44.entities.Like.create(data),
+        mutationFn: createLike,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['inbound-likes'] });
             queryClient.invalidateQueries({ queryKey: ['my-likes'] });

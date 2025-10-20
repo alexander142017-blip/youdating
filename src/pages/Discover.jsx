@@ -1,6 +1,9 @@
 
 import React, { useState, useEffect, useMemo } from "react";
-import { base44 } from "@/api/base44Client";
+import { getCurrentUser } from "@/api/auth";
+import { upsertProfile } from "@/api/profiles";
+import { supabase } from "@/api/supabase";
+import { sendEmail } from "@/api/integrations";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -39,12 +42,8 @@ function getDistance(lat1, lon1, lat2, lon2, units = 'miles') {
 }
 
 const trackEvent = (userEmail, eventType, context = {}) => {
-    base44.entities.AnalyticsEvents.create({
-        user_email: userEmail,
-        type: eventType,
-        context,
-        day: format(new Date(), 'yyyy-MM-dd')
-    });
+    // TODO: Replace with event logging using supabase table
+    console.log('Analytics event:', { userEmail, eventType, context, day: format(new Date(), 'yyyy-MM-dd') });
 };
 
 export default function DiscoverPage() {
@@ -60,7 +59,7 @@ export default function DiscoverPage() {
 
   const { data: currentUser, refetch: refetchCurrentUser } = useQuery({
     queryKey: ['current-user'],
-    queryFn: () => base44.auth.me(),
+    queryFn: getCurrentUser,
     staleTime: 5 * 60 * 1000,
     onSuccess: (user) => {
       if (!user.profile_completed) {
@@ -77,7 +76,11 @@ export default function DiscoverPage() {
   
   const { data: configData, isLoading: isLoadingConfig } = useQuery({
       queryKey: ['app-config'],
-      queryFn: () => base44.entities.Config.list(),
+      queryFn: async () => {
+        // TODO: Implement config table query using Supabase
+        const { data } = await supabase.from('config').select('*');
+        return data || [];
+      },
   });
 
   const config = useMemo(() => {
@@ -91,40 +94,54 @@ export default function DiscoverPage() {
 
   const { data: allUsers, isLoading: isLoadingUsers } = useQuery({
     queryKey: ['users'],
-    queryFn: () => base44.entities.User.list(),
+    queryFn: async () => {
+      // TODO: Implement profiles query using Supabase
+      const { data } = await supabase.from('profiles').select('*');
+      return data || [];
+    },
     enabled: !!currentUser,
     initialData: [],
   });
 
   const { data: myLikes, isLoading: isLoadingLikes } = useQuery({
     queryKey: ['my-likes', currentUser?.email],
-    queryFn: () => base44.entities.Like.filter({ from_email: currentUser?.email }),
+    queryFn: async () => {
+      // TODO: Implement likes query using Supabase
+      const { data } = await supabase.from('likes').select('*').eq('from_email', currentUser?.email);
+      return data || [];
+    },
     enabled: !!currentUser,
     initialData: [],
   });
 
   const { data: existingMatches, isLoading: isLoadingMatches } = useQuery({
     queryKey: ['my-matches'],
-    queryFn: () => base44.entities.Match.filter({
-      is_mutual: true, // Only mutual matches
-      $or: [
-        { user1_email: currentUser?.email },
-        { user2_email: currentUser?.email }
-      ]
-    }),
+    queryFn: async () => {
+      // TODO: Implement matches query using Supabase
+      const { data } = await supabase.from('matches').select('*').eq('is_mutual', true);
+      return data || [];
+    },
     enabled: !!currentUser,
     initialData: [],
   });
   
   const { data: blocks } = useQuery({
     queryKey: ['blocks'],
-    queryFn: () => base44.entities.Block.list(),
+    queryFn: async () => {
+      // TODO: Implement blocks query using Supabase
+      const { data } = await supabase.from('blocks').select('*');
+      return data || [];
+    },
     enabled: !!currentUser,
     initialData: [],
   });
 
   const sendEmailMutation = useMutation({
-    mutationFn: (emailData) => base44.integrations.Core.SendEmail(emailData),
+    mutationFn: (emailData) => {
+      // TODO: Implement sendEmail integration
+      console.log('Email would be sent:', emailData);
+      return Promise.resolve();
+    },
     onError: (error) => {
       // Log error but don't block the user experience
       console.error("Failed to send notification email:", error);
@@ -132,7 +149,7 @@ export default function DiscoverPage() {
   });
 
   const updateUserMutation = useMutation({
-    mutationFn: (data) => base44.auth.updateMe(data),
+    mutationFn: (data) => upsertProfile({ ...currentUser, ...data }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['current-user'] });
       refetchCurrentUser();
@@ -143,7 +160,11 @@ export default function DiscoverPage() {
   });
   
   const likeMutation = useMutation({
-    mutationFn: (data) => base44.entities.Like.create(data),
+    mutationFn: async (data) => {
+      // TODO: Implement like creation using Supabase
+      const { data: result } = await supabase.from('likes').insert([data]).select().maybeSingle();
+      return result;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-likes'] });
     },
@@ -154,7 +175,11 @@ export default function DiscoverPage() {
   });
 
   const matchMutation = useMutation({
-    mutationFn: (data) => base44.entities.Match.create(data),
+    mutationFn: async (data) => {
+      // TODO: Implement match creation using Supabase
+      const { data: result } = await supabase.from('matches').insert([data]).select().maybeSingle();
+      return result;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-matches'] });
     },
@@ -279,13 +304,13 @@ export default function DiscoverPage() {
     // If it was a like, check for a mutual match
     if (liked) {
       // Check if the other person has already liked us
-      const theyLikedUs = await base44.entities.Like.filter({
-        from_email: currentProfile.email,
-        to_email: currentUser.email,
-        is_like: true,
-      });
+      // TODO: Implement likes query using Supabase
+      const { data: theyLikedUs } = await supabase.from('likes').select('*')
+        .eq('from_email', currentProfile.email)
+        .eq('to_email', currentUser.email)
+        .eq('is_like', true);
 
-      if (theyLikedUs.length > 0) {
+      if (theyLikedUs && theyLikedUs.length > 0) {
         // It's a match!
         trackEvent(currentUser.email, 'matchCreated', { matchWith: currentProfile.email });
         trackEvent(currentProfile.email, 'matchCreated', { matchWith: currentUser.email });

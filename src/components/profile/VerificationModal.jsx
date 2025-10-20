@@ -8,7 +8,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Camera, CheckCircle, Shield } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { upsertProfile } from "@/api/profiles";
+import { toast } from 'sonner';
 
 export default function VerificationModal({ isOpen, onClose, onVerified }) {
   const videoRef = useRef(null);
@@ -70,20 +71,23 @@ export default function VerificationModal({ isOpen, onClose, onVerified }) {
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
       const file = new File([blob], `verification-${Date.now()}.jpg`, { type: 'image/jpeg' });
       
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      // TODO: Implement file upload using Supabase Storage
+      toast.error("Photo upload not implemented. Implement using Supabase Storage in VerificationModal.jsx");
+      throw new Error("Upload not implemented");
       
-      await base44.auth.updateMe({
-        is_verified: true,
-        verification_photo: file_url,
-        verification_date: new Date().toISOString()
-      });
+      // After implementing upload:
+      // await upsertProfile({
+      //   is_verified: true,
+      //   verification_photo: file_url,
+      //   verification_date: new Date().toISOString()
+      // });
 
       stopCamera();
       onVerified();
       onClose();
     } catch (error) {
       console.error("Error during verification:", error);
-      alert("Verification failed. Please try again.");
+      toast.error("Verification failed. Please try again.");
     }
 
     setIsUploading(false);

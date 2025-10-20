@@ -1,20 +1,16 @@
-# Base44 App
+# YouDating
 
+YouDating — a client app built with Vite + React + Supabase + Tailwind.
 
-This app was created automatically by Base44.
-It's a Vite+React app that communicates with the Base44 API.
+Quick start
 
-## Running the app
+1. Copy .env.example to .env and set:
+   VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
 
-```bash
-npm install
-npm run dev
-```
+2. Install and run:
+   npm install
+   npm run dev
 
-## Building the app
-
-```bash
-npm run build
-```
-
-For more information and support, please contact Base44 support at app@base44.com.# youdating
+Notes
+- This repo no longer uses the Base44 SDK. API helpers live in src/api/* and are minimal; update them to match your DB schema and integrations.
+- Do not commit secrets to the repo.

@@ -1,6 +1,9 @@
 
 import React, { useMemo, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { getCurrentUser } from "@/api/auth";
+import { upsertProfile } from "@/api/profiles";
+import { createPurchase } from "@/api/purchases";
+import { supabase } from "@/api/supabase";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/card";
@@ -11,12 +14,8 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
 const trackEvent = (userEmail, eventType, context = {}) => {
-    base44.entities.AnalyticsEvents.create({
-        user_email: userEmail,
-        type: eventType,
-        context,
-        day: format(new Date(), 'yyyy-MM-dd')
-    });
+    // TODO: Replace with event logging using supabase table
+    console.log('Analytics event:', { userEmail, eventType, context, day: format(new Date(), 'yyyy-MM-dd') });
 };
 
 const PremiumFeature = ({ icon, text }) => {
@@ -60,12 +59,16 @@ export default function StorePage() {
 
   const { data: currentUser } = useQuery({
       queryKey: ['current-user'],
-      queryFn: () => base44.auth.me()
+      queryFn: getCurrentUser
   });
   
   const { data: configData, isLoading: isLoadingConfig } = useQuery({
       queryKey: ['app-config'],
-      queryFn: () => base44.entities.Config.list(),
+      queryFn: async () => {
+        // TODO: Implement config table query using Supabase
+        const { data } = await supabase.from('config').select('*');
+        return data || [];
+      },
   });
 
   const config = useMemo(() => {
@@ -78,7 +81,7 @@ export default function StorePage() {
   }, [configData]);
 
   const updateUserMutation = useMutation({
-    mutationFn: (data) => base44.auth.updateMe(data),
+    mutationFn: (data) => upsertProfile({ ...currentUser, ...data }),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['current-user'] });
       
@@ -110,7 +113,7 @@ export default function StorePage() {
   });
   
   const createPurchaseRecordMutation = useMutation({
-      mutationFn: (data) => base44.entities.Purchase.create(data),
+      mutationFn: (data) => createPurchase({ userId: currentUser.id, productId: data.product_id, metadata: data }),
       onError: () => {} // Fail silently on analytics
   });
 

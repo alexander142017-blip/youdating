@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { base44 } from '@/api/base44Client';
+import { getCurrentUser } from '@/api/auth';
+import { upsertProfile } from '@/api/profiles';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -17,12 +18,8 @@ const MAX_PHOTOS = 6;
 const MAX_INTERESTS = 10;
 
 const trackEvent = (userEmail, eventType, context = {}) => {
-    base44.entities.AnalyticsEvents.create({
-        user_email: userEmail,
-        type: eventType,
-        context,
-        day: format(new Date(), 'yyyy-MM-dd')
-    }).catch(err => console.error("Analytics event failed:", err));
+    // TODO: Replace with event logging using supabase table
+    console.log('Analytics event:', { userEmail, eventType, context, day: format(new Date(), 'yyyy-MM-dd') });
 };
 
 export default function EditProfilePage() {
@@ -38,7 +35,7 @@ export default function EditProfilePage() {
 
     const { data: currentUser, isLoading: isLoadingUser } = useQuery({
         queryKey: ['current-user-edit'],
-        queryFn: () => base44.auth.me(),
+        queryFn: getCurrentUser,
         onSuccess: (user) => {
             if (user) {
                 setFormData({
@@ -51,7 +48,7 @@ export default function EditProfilePage() {
     });
 
     const updateProfileMutation = useMutation({
-        mutationFn: (updatedData) => base44.auth.updateMe(updatedData),
+        mutationFn: (updatedData) => upsertProfile({ ...currentUser, ...updatedData }),
         onSuccess: () => {
             trackEvent(currentUser.email, 'profileEdited');
             toast.success('Profile updated successfully!');
@@ -65,7 +62,10 @@ export default function EditProfilePage() {
     });
 
     const uploadFileMutation = useMutation({
-        mutationFn: (file) => base44.integrations.Core.UploadFile({ file }),
+        mutationFn: (file) => {
+            // TODO: Implement file upload using Supabase Storage
+            throw new Error('File upload not implemented. Implement using Supabase Storage in EditProfile.jsx');
+        },
         onSuccess: (data) => {
             if (formData.photos.length < MAX_PHOTOS) {
                 setFormData(prev => ({ ...prev, photos: [...prev.photos, data.file_url] }));

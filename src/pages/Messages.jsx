@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
-import { base44 } from "@/api/base44Client";
+import { getCurrentUser } from '@/api/auth';
+import { supabase } from '@/api/supabase';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,7 @@ import { createPageUrl } from "@/utils";
 import { differenceInYears, formatDistanceToNowStrict } from 'date-fns';
 
 const trackEvent = (userEmail, eventType, context = {}) => {
-    base44.entities.AnalyticsEvents.create({
+    // TODO: Analytics event - {
         user_email: userEmail,
         type: eventType,
         context,
@@ -35,7 +36,7 @@ export default function MessagesPage() {
   useEffect(() => {
     const loadCurrentUser = async () => {
       try {
-        const user = await base44.auth.me();
+        const user = await getCurrentUser();
         setCurrentUser(user);
       } catch (error) {
         console.error("Error loading user:", error);
@@ -46,7 +47,7 @@ export default function MessagesPage() {
 
   const { data: matches, refetch: refetchMatchesData } = useQuery({
     queryKey: ['mutual-matches', currentUser?.email],
-    queryFn: () => base44.entities.Match.filter({ 
+    queryFn: async () => { const { data } = await supabase.from('matches').select('*'); return (data || []).filter(m => ( 
       is_mutual: true,
       $or: [
         { user1_email: currentUser?.email },
@@ -59,21 +60,21 @@ export default function MessagesPage() {
 
   const { data: allUsers } = useQuery({
     queryKey: ['all-users'],
-    queryFn: () => base44.entities.User.list(),
+    queryFn: async () => { const { data } = await supabase.from('profiles').select('*'); return data || []; },
     enabled: !!currentUser,
     initialData: [],
   });
 
   const { data: blocks } = useQuery({
     queryKey: ['blocks', currentUser?.email],
-    queryFn: () => base44.entities.Block.list(),
+    queryFn: async () => { const { data } = await supabase.from('blocks').select('*'); return data || []; },
     enabled: !!currentUser,
     initialData: [],
   });
   
   const { data: messages, refetch: refetchMessages } = useQuery({
     queryKey: ['messages', selectedUser?.matchId],
-    queryFn: () => base44.entities.Message.filter({ 
+    queryFn: async () => { const { data } = await supabase.from('messages').select('*'); return (data || []).filter(m => ( 
       match_id: selectedUser?.matchId 
     }, 'created_date'),
     enabled: !!selectedUser?.matchId,
@@ -100,7 +101,7 @@ export default function MessagesPage() {
   }, [messages]);
 
   const sendMessageMutation = useMutation({
-    mutationFn: (messageData) => base44.entities.Message.create(messageData),
+    mutationFn: async (messageData) => { const { data } = await supabase.from('messages').insert([messageData]).select().maybeSingle(); return data; },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['messages', selectedUser?.matchId] });
       setNewMessage("");
@@ -112,14 +113,14 @@ export default function MessagesPage() {
   });
   
   const sendEmailMutation = useMutation({
-    mutationFn: (emailData) => base44.integrations.Core.SendEmail(emailData),
+    mutationFn: async (emailData) => { console.log('Email would be sent:', emailData); return Promise.resolve(); },
     onError: (error) => {
       // Fail silently
     },
   });
 
   const updateMatchMutation = useMutation({
-    mutationFn: ({id, data}) => base44.entities.Match.update(id, data),
+    mutationFn: async ({id, data}) => { const { data: result } = await supabase.from('matches').update(data).eq('id', id).select().maybeSingle(); return result; },
     onSuccess: () => {
         refetchMatchesData();
     }

@@ -1,6 +1,6 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { base44 } from '@/api/base44Client';
+import { getCurrentUser } from '@/api/auth';
+import { upsertProfile, markOnboardingComplete } from '@/api/profiles';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -71,15 +71,11 @@ const Step2_Photos = ({ data, setData }) => {
         if (file) {
             setIsUploading(true);
             try {
-                const { file_url } = await base44.integrations.Core.UploadFile({ file });
-                if (data.photos.length < 6) {
-                    setData(prev => ({ ...prev, photos: [...prev.photos, file_url] }));
-                } else {
-                    toast.warning("You can only upload a maximum of 6 photos.");
-                }
+                // TODO: Implement file upload using Supabase Storage
+                toast.error("Photo upload not implemented. Implement using Supabase Storage in Onboarding.jsx");
+                setIsUploading(false);
             } catch (error) {
                 toast.error("Photo upload failed. Please try again.");
-            } finally {
                 setIsUploading(false);
             }
         }
@@ -168,12 +164,8 @@ const Step5_Permissions = () => (
 // #endregion
 
 const trackEvent = (userEmail, eventType, context = {}) => {
-    base44.entities.AnalyticsEvents.create({
-        user_email: userEmail,
-        type: eventType,
-        context,
-        day: format(new Date(), 'yyyy-MM-dd')
-    });
+    // TODO: Replace with event logging using supabase table
+    console.log('Analytics event:', { userEmail, eventType, context, day: format(new Date(), 'yyyy-MM-dd') });
 };
 
 export default function OnboardingPage() {
@@ -199,7 +191,7 @@ export default function OnboardingPage() {
     useEffect(() => {
         const fetchUser = async () => {
             try {
-                const currentUser = await base44.auth.me();
+                const currentUser = await getCurrentUser();
                 setUser(currentUser);
                 if (currentUser.profile_completed) {
                     navigate(createPageUrl('Discover'));
@@ -215,7 +207,7 @@ export default function OnboardingPage() {
     }, [navigate]);
 
     const updateUserMutation = useMutation({
-        mutationFn: (data) => base44.auth.updateMe(data),
+        mutationFn: (data) => upsertProfile({ ...user, ...data }),
         onSuccess: () => {
             trackEvent(user.email, 'onboardingComplete');
             setIsSubmitting(false);

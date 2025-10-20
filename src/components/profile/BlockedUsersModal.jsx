@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabase';
 import {
   Dialog,
   DialogContent,
@@ -18,18 +18,29 @@ export default function BlockedUsersModal({ isOpen, onClose, currentUser }) {
 
   const { data: blocks, isLoading: isLoadingBlocks } = useQuery({
     queryKey: ['blocks', currentUser?.email],
-    queryFn: () => base44.entities.Block.list(),
+    queryFn: async () => {
+      // TODO: Implement blocks query using Supabase
+      const { data } = await supabase.from('blocks').select('*');
+      return data || [];
+    },
     enabled: !!currentUser && isOpen,
   });
   
   const { data: allUsers, isLoading: isLoadingUsers } = useQuery({
     queryKey: ['all-users'],
-    queryFn: () => base44.entities.User.list(),
+    queryFn: async () => {
+      // TODO: Implement profiles query using Supabase
+      const { data } = await supabase.from('profiles').select('*');
+      return data || [];
+    },
     enabled: !!currentUser && isOpen && !!blocks && blocks.length > 0,
   });
 
   const unblockMutation = useMutation({
-    mutationFn: (blockId) => base44.entities.Block.delete(blockId),
+    mutationFn: async (blockId) => {
+      // TODO: Implement block deletion using Supabase
+      await supabase.from('blocks').delete().eq('id', blockId);
+    },
     onSuccess: () => {
       toast.success("User unblocked.");
       queryClient.invalidateQueries({ queryKey: ['blocks'] });

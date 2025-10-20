@@ -15,12 +15,8 @@ import { createPageUrl } from "@/utils";
 import { differenceInYears, formatDistanceToNowStrict } from 'date-fns';
 
 const trackEvent = (userEmail, eventType, context = {}) => {
-    // TODO: Analytics event - {
-        user_email: userEmail,
-        type: eventType,
-        context,
-        day: format(new Date(), 'yyyy-MM-dd')
-    }).catch(err => console.error("Analytics event failed:", err));
+    // TODO: Replace with event logging using supabase table
+    console.log('Analytics event:', { userEmail, eventType, context, day: format(new Date(), 'yyyy-MM-dd') });
 };
 
 export default function MessagesPage() {
@@ -47,13 +43,15 @@ export default function MessagesPage() {
 
   const { data: matches, refetch: refetchMatchesData } = useQuery({
     queryKey: ['mutual-matches', currentUser?.email],
-    queryFn: async () => { const { data } = await supabase.from('matches').select('*'); return (data || []).filter(m => ( 
-      is_mutual: true,
-      $or: [
-        { user1_email: currentUser?.email },
-        { user2_email: currentUser?.email }
-      ]
-    }),
+    queryFn: async () => { 
+      // TODO: Implement matches query using Supabase
+      const { data } = await supabase.from('matches').select('*')
+        .eq('is_mutual', true);
+      // Filter for matches involving current user
+      return (data || []).filter(m => 
+        m.user1_email === currentUser?.email || m.user2_email === currentUser?.email
+      );
+    },
     enabled: !!currentUser,
     initialData: [],
   });
@@ -74,9 +72,13 @@ export default function MessagesPage() {
   
   const { data: messages, refetch: refetchMessages } = useQuery({
     queryKey: ['messages', selectedUser?.matchId],
-    queryFn: async () => { const { data } = await supabase.from('messages').select('*'); return (data || []).filter(m => ( 
-      match_id: selectedUser?.matchId 
-    }, 'created_date'),
+    queryFn: async () => { 
+      // TODO: Implement messages query using Supabase
+      const { data } = await supabase.from('messages').select('*')
+        .eq('match_id', selectedUser?.matchId)
+        .order('created_date', { ascending: true });
+      return data || [];
+    },
     enabled: !!selectedUser?.matchId,
     refetchInterval: 5000, // Poll for new messages every 5 seconds
     initialData: [],

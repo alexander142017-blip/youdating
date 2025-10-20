@@ -64,8 +64,11 @@ export default function AnalyticsDashboard() {
 
     const { data: events, isLoading: isLoadingEvents } = useQuery({
         queryKey: ['analytics-events-7d'],
-        queryFn: async () => { // TODO: Implement analytics query
-        return []; } // ({ created_date: { $gte: subDays(new Date(), 7).toISOString() } }),
+        queryFn: async () => { 
+          // TODO: Implement analytics query using Supabase
+          // Query events from last 7 days
+          return []; 
+        },
         enabled: !!currentUser && currentUser.role === 'admin',
     });
 

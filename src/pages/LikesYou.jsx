@@ -22,16 +22,24 @@ export default function LikesYouPage() {
 
     const { data: inboundLikes, isLoading: isLoadingLikes } = useQuery({
         queryKey: ['inbound-likes', currentUser?.email],
-        queryFn: async () => { const { data } = await supabase.from('likes').select('*'); return (data || []).filter(l => (
-            to_email: currentUser?.email,
-            is_like: true
-        }),
+        queryFn: async () => { 
+          // TODO: Implement likes query using Supabase
+          const { data } = await supabase.from('likes').select('*')
+            .eq('to_email', currentUser?.email)
+            .eq('is_like', true);
+          return data || [];
+        },
         enabled: !!currentUser,
     });
 
     const { data: myActions } = useQuery({
         queryKey: ['my-likes', currentUser?.email],
-        queryFn: async () => { const { data } = await supabase.from('likes').select('*'); return (data || []).filter(l => ( from_email: currentUser?.email }),
+        queryFn: async () => { 
+          // TODO: Implement likes query using Supabase
+          const { data } = await supabase.from('likes').select('*')
+            .eq('from_email', currentUser?.email);
+          return data || [];
+        },
         enabled: !!currentUser,
     });
 

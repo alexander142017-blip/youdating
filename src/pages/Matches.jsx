@@ -40,13 +40,15 @@ export default function MatchesPage() {
 
   const { data: matches, isLoading } = useQuery({
     queryKey: ['mutual-matches', currentUser?.email], // Updated queryKey
-    queryFn: async () => { const { data } = await supabase.from('matches').select('*'); return (data || []).filter(m => ( 
-      is_mutual: true,
-      $or: [
-        { user1_email: currentUser?.email },
-        { user2_email: currentUser?.email }
-      ]
-    }),
+    queryFn: async () => { 
+      // TODO: Implement matches query using Supabase
+      const { data } = await supabase.from('matches').select('*')
+        .eq('is_mutual', true);
+      // Filter for matches involving current user
+      return (data || []).filter(m => 
+        m.user1_email === currentUser?.email || m.user2_email === currentUser?.email
+      );
+    },
     enabled: !!currentUser,
   });
 

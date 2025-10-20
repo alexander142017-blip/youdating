@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Camera, CheckCircle, Shield } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { base44 } from "@/api";
 
 export default function VerificationModal({ isOpen, onClose, onVerified }) {
   const videoRef = useRef(null);

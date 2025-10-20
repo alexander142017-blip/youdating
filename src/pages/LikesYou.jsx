@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from "react";
-import { base44 } from "@/api/base44Client";
+import { base44 } from "@/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardTitle, CardDescription } from "@/components/ui/card";
 import { Heart, Sparkles, Lock } from "lucide-react";

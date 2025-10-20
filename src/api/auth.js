@@ -5,7 +5,11 @@ import { supabase } from './supabase';
  * Combines Supabase auth user and the profiles row if present.
  */
 export async function getCurrentUser() {
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
+  const { data: { user } = {}, error: authErr } = await supabase.auth.getUser();
+  if (authErr) {
+    // don't throw here — allow callers to handle null user
+    console.warn('supabase.auth.getUser error', authErr);
+  }
   if (!user) return null;
 
   const { data: profile, error: profileErr } = await supabase
@@ -14,7 +18,8 @@ export async function getCurrentUser() {
     .eq('id', user.id)
     .maybeSingle();
 
-  // profile may be null if not created yet
+  if (profileErr) console.warn('failed to load profile', profileErr);
+
   return {
     ...user,
     ...(profile || {})

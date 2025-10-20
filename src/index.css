@@ -2,7 +2,4 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Add any global overrides below */
-html, body, #root {
-  height: 100%;
-}
+html, body, #root { height: 100%; }

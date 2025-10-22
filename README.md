@@ -1,24 +1,25 @@
 # YouDating
 
-YouDating — a client app built with Vite + React + Supabase + Tailwind.
+YouDating is a Vite + React + Tailwind web app using Supabase for backend services.
 
-Quick start
+Current stack
+- Vite
+- React
+- Tailwind CSS
+- Supabase (auth, database, storage)
 
-1. Copy .env.example to .env and set:
-   VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+Quick start (local)
+1. Copy environment variables into a local `.env` or your dev environment:
+   - VITE_SUPABASE_URL
+   - VITE_SUPABASE_ANON_KEY
 
 2. Install and run:
-   npm install
+   npm ci
    npm run dev
 
+Build for production
+   npm run build
+
 Notes
-- This repo no longer uses the Base44 SDK. API helpers live in src/api/* and are minimal; update them to match your DB schema and integrations.
-- Do not commit secrets to the repo.
-
-Current stack: Vite + React + Tailwind + Supabase.
-
-Required env vars (for local dev):
-- VITE_SUPABASE_URL
-- VITE_SUPABASE_ANON_KEY
-
-Legacy migration scripts related to the previous Base44 SDK have been archived in scripts/archive/ and .github/archive/. These are historical references only and are not executed by CI/workflows.
+- Legacy migration scripts related to the previous Base44 SDK have been archived in `scripts/archive/` and `.github/archive/`. The app no longer depends on `@base44/sdk`. If you need the historical migration scripts for reference, look in `scripts/archive/`.
+- If you see references to Base44 in archive directories or in CHANGELOGs/history, those are historical only and do not affect runtime.

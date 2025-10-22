@@ -1,14 +1,9 @@
-import './App.css'
-import Pages from "@/pages/index.jsx"
-import { Toaster } from "@/components/ui/toaster"
+import React from 'react';
 
-function App() {
+export default function App() {
   return (
-    <>
-      <Pages />
-      <Toaster />
-    </>
-  )
+    <div className="min-h-screen flex items-center justify-center">
+      <h1 className="text-2xl font-bold">YouDating</h1>
+    </div>
+  );
 }
-
-export default App 

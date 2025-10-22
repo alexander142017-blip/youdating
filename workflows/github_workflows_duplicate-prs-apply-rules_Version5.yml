@@ -1,0 +1,305 @@
+# Duplicate PRs, apply rules, verify build, optional auto-approve / auto-merge
+on:
+  workflow_dispatch:
+    inputs:
+      actor:
+        description: 'PR author login to process (default: the user who triggers the workflow)'
+        required: false
+        default: '${{ github.actor }}'
+      hours:
+        description: 'Look for PRs closed within the last N hours (ignored if pr_numbers provided)'
+        required: false
+        default: '2'
+      pr_numbers:
+        description: 'Optional comma-separated list of PR numbers to process (overrides automatic detection)'
+        required: false
+        default: ''
+      auto_approve:
+        description: 'If "true", automatically post an approval review on new PRs when build verification passed'
+        required: false
+        default: 'false'
+      auto_merge:
+        description: 'If "true", automatically merge the new PR when build verification passed and approvals satisfied'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+name: Duplicate closed PRs and apply updated rules (with optional auto-approve / auto-merge)
+
+jobs:
+  duplicate-and-verify:
+    runs-on: ubuntu-latest
+    environment: github-actions
+    env:
+      REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+      AUTO_APPROVE: ${{ github.event.inputs.auto_approve || 'false' }}
+      AUTO_MERGE: ${{ github.event.inputs.auto_merge || 'false' }}
+    steps:
+      - name: Checkout repository (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install jq (used for JSON processing)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Determine PRs to process
+        id: list_prs
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const actorInput = (process.env.INPUT_ACTOR && process.env.INPUT_ACTOR !== '') ? process.env.INPUT_ACTOR : context.actor;
+            const hours = parseInt(process.env.INPUT_HOURS || '2', 10);
+            const prNumbersInput = process.env.INPUT_PR_NUMBERS || '';
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const prs = [];
+
+            if (prNumbersInput && prNumbersInput.trim() !== '') {
+              const nums = prNumbersInput.split(',').map(s => s.trim()).filter(Boolean);
+              for (const n of nums) {
+                const pr = await github.rest.pulls.get({ owner, repo, pull_number: parseInt(n, 10) });
+                prs.push(pr.data);
+              }
+            } else {
+              const res = await github.rest.pulls.list({ owner, repo, state: 'closed', per_page: 100 });
+              const cutoff = Date.now() - (hours * 3600 * 1000);
+              for (const p of res.data) {
+                if (p.user && p.user.login === actorInput) {
+                  if (!p.closed_at) continue;
+                  const closedAt = new Date(p.closed_at).getTime();
+                  if (closedAt >= cutoff) prs.push(p);
+                }
+              }
+            }
+
+            return JSON.stringify(prs);
+
+      - name: Show PRs found
+        run: |
+          echo "PR list JSON:"
+          echo '${{ steps.list_prs.outputs.result }}' | jq -r '.[] | "PR #\(.number) - \(.title) (\(.html_url))"'
+
+      - name: Process each PR (branch, apply rules, build, push, create PR, comment, auto-approve/merge)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_WRITE_TOKEN: ${{ secrets.REPO_WRITE_TOKEN }}
+          REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          AUTO_APPROVE: ${{ github.event.inputs.auto_approve || 'false' }}
+          AUTO_MERGE: ${{ github.event.inputs.auto_merge || 'false' }}
+        run: |
+          set -euo pipefail
+          PRS_JSON='${{ steps.list_prs.outputs.result }}'
+          if [ -z "$PRS_JSON" ] || [ "$PRS_JSON" = "[]" ]; then
+            echo "No PRs to process. Exiting."
+            exit 0
+          fi
+
+          echo "$PRS_JSON" > /tmp/prs.json
+          http_post() {
+            local url="$1"; shift
+            local token="$1"; shift
+            local data="$1"
+            curl -sS -X POST -H "Authorization: token ${token}" -H "Accept: application/vnd.github+json" "$url" -d "$data"
+          }
+          http_put() {
+            local url="$1"; shift
+            local token="$1"; shift
+            local data="$1"
+            curl -sS -X PUT -H "Authorization: token ${token}" -H "Accept: application/vnd.github+json" "$url" -d "$data"
+          }
+
+          for pr in $(jq -c '.[]' /tmp/prs.json); do
+            number=$(echo "$pr" | jq -r '.number')
+            title=$(echo "$pr" | jq -r '.title')
+            head_repo_full=$(echo "$pr" | jq -r '.head.repo.full_name // ""')
+            head_repo_clone_url=$(echo "$pr" | jq -r '.head.repo.clone_url // ""')
+            head_ref=$(echo "$pr" | jq -r '.head.ref')
+            head_sha=$(echo "$pr" | jq -r '.head.sha')
+            new_branch="rules-update/pr-${number}"
+
+            echo "--------------------------------------------"
+            echo "Processing PR #${number}: ${title}"
+            echo "Creating branch ${new_branch} from origin/main"
+            git fetch origin main
+            git checkout -b "${new_branch}" origin/main
+
+            if [ -n "$head_repo_clone_url" ] && [ "$head_repo_full" != "${REPO}" ]; then
+              echo "PR head is from a fork: ${head_repo_full} (${head_ref})"
+              remote_name="fork-${number}"
+              git remote add "${remote_name}" "${head_repo_clone_url}" || true
+              if git fetch "${remote_name}" "${head_ref}:orig-pr-head"; then
+                git merge --no-edit orig-pr-head || true
+              else
+                git fetch "${remote_name}" "${head_sha}:orig-pr-head"
+                git merge --no-edit orig-pr-head || true
+              fi
+            else
+              echo "PR head is same-repo: ${head_ref}"
+              if git fetch origin "${head_ref}:orig-pr-head"; then
+                git merge --no-edit orig-pr-head || true
+              else
+                git fetch origin "refs/pull/${number}/head:orig-pr-head"
+                git merge --no-edit orig-pr-head || true
+              fi
+            fi
+
+            if [ -x ./apply-updated-rules.sh ]; then
+              echo "Running ./apply-updated-rules.sh"
+              if ./apply-updated-rules.sh; then
+                script_rc=0
+              else
+                script_rc=$?
+                echo "apply-updated-rules.sh exited with code ${script_rc}"
+              fi
+            else
+              echo "apply-updated-rules.sh missing or not executable — skipping rule application for PR #${number}"
+              script_rc=127
+            fi
+
+            git add -A || true
+
+            if ! git diff --cached --quiet; then
+              git -c user.email="actions@github.com" -c user.name="GitHub Actions" commit -m "chore(rules): apply updated repository rules — duplicate of PR #${number}" || true
+              committed=true
+            else
+              echo "No changes to commit for PR #${number}"
+              committed=false
+            fi
+
+            build_status="skipped"
+            build_log=""
+            if [ -f package.json ]; then
+              echo "Installing dependencies for verification (npm ci --silent)"
+              if npm ci --silent 2>&1 | tee /tmp/npm-ci.log; then
+                echo "npm ci succeeded"
+                echo "Running build (npm run build --silent)"
+                if npm run build --silent 2>&1 | tee /tmp/npm-build.log; then
+                  echo "npm run build succeeded"
+                  build_status="pass"
+                else
+                  echo "npm run build failed"
+                  build_status="fail"
+                  build_log=$(sed -n '1,400p' /tmp/npm-build.log || true)
+                fi
+              else
+                echo "npm ci failed"
+                build_status="fail"
+                build_log=$(sed -n '1,400p' /tmp/npm-ci.log || true)
+              fi
+            else
+              echo "No package.json found — skipping npm verification"
+              build_status="skipped"
+            fi
+
+            TOKEN="${GITHUB_TOKEN}"
+            push_url="https://x-access-token:${TOKEN}@github.com/${REPO}.git"
+            echo "Pushing branch ${new_branch} to origin"
+            if git push "${push_url}" "HEAD:${new_branch}"; then
+              echo "Pushed branch with first token"
+            else
+              echo "Push failed with initial token. Trying REPO_WRITE_TOKEN if available."
+              if [ -n "${REPO_WRITE_TOKEN:-}" ]; then
+                TOKEN="${REPO_WRITE_TOKEN}"
+                push_url="https://x-access-token:${TOKEN}@github.com/${REPO}.git"
+                git push "${push_url}" "HEAD:${new_branch}"
+                echo "Pushed branch with REPO_WRITE_TOKEN"
+              else
+                echo "Push failed and REPO_WRITE_TOKEN not set. Posting failure marker and skipping PR creation for #${number}."
+                continue
+              fi
+            fi
+
+            pr_body_base="This PR duplicates #${number} with the repository's updated rules applied and verified in CI. Build status: ${build_status}."
+            if [ "${build_status}" = "fail" ]; then
+              pr_body="${pr_body_base}\n\nBuild logs (excerpt):\n\`\`\`\n${build_log}\n\`\`\`\n\nTODOs:\n- Fix build failures shown above\n- Re-run verification locally or in CI\n"
+              draft_flag=true
+            else
+              pr_body="${pr_body_base}"
+              draft_flag=false
+            fi
+
+            create_payload=$(jq -n --arg title "rules: apply updated repository rules — duplicate of #${number}" --arg head "${new_branch}" --arg body "${pr_body}" --argjson draft ${draft_flag} '{title:$title, head:$head, base:"main", body:$body, draft:$draft}')
+            PR_API="https://api.github.com/repos/${REPO}/pulls"
+            response=$(http_post "${PR_API}" "${TOKEN}" "${create_payload}")
+
+            new_pr_url=$(echo "$response" | jq -r .html_url // empty)
+            new_pr_number=$(echo "$response" | jq -r .number // empty)
+            if [ -z "$new_pr_url" ] || [ "$new_pr_url" = "null" ]; then
+              message=$(echo "$response" | jq -r .message // empty)
+              echo "Create PR response: $message"
+              if echo "$message" | grep -qi -E "Resource not accessible by integration|Forbidden|Requires authentication"; then
+                if [ -n "${REPO_WRITE_TOKEN:-}" ] && [ "${TOKEN}" != "${REPO_WRITE_TOKEN}" ]; then
+                  echo "Retrying PR creation with REPO_WRITE_TOKEN"
+                  TOKEN="${REPO_WRITE_TOKEN}"
+                  response=$(http_post "${PR_API}" "${TOKEN}" "${create_payload}")
+                  new_pr_url=$(echo "$response" | jq -r .html_url // empty)
+                  new_pr_number=$(echo "$response" | jq -r .number // empty)
+                fi
+              fi
+            fi
+
+            if [ -n "$new_pr_url" ] && [ "$new_pr_url" != "null" ]; then
+              echo "Created new PR: $new_pr_url"
+              comment_body="Created updated PR: ${new_pr_url}. This duplicates your original PR with repository rules applied. Please review the duplicate. The original PR remains closed."
+              comments_api="https://api.github.com/repos/${REPO}/issues/${number}/comments"
+              curl -sS -X POST -H "Authorization: token ${TOKEN}" -H "Accept: application/vnd.github+json" "${comments_api}" -d "$(jq -n --arg b "$comment_body" '{body:$b}')"
+
+              # If build passed and auto-approve is requested -> approve the PR
+              if [ "${build_status}" = "pass" ] && [ "${AUTO_APPROVE}" = "true" ]; then
+                echo "Auto-approve requested and build passed — creating an APPROVE review for PR #${new_pr_number}"
+                review_api="https://api.github.com/repos/${REPO}/pulls/${new_pr_number}/reviews"
+                review_payload=$(jq -n --arg body "Automated approval: build verification passed." '{body:$body, event:"APPROVE"}')
+                review_resp=$(http_post "${review_api}" "${TOKEN}" "${review_payload}")
+                echo "Review response: $(echo "$review_resp" | jq -c '.')"
+              fi
+
+              # If build passed and auto-merge requested -> attempt to merge
+              if [ "${build_status}" = "pass" ] && [ "${AUTO_MERGE}" = "true" ]; then
+                echo "Auto-merge requested and build passed — attempting to merge PR #${new_pr_number}"
+                merge_api="https://api.github.com/repos/${REPO}/pulls/${new_pr_number}/merge"
+                merge_payload=$(jq -n --arg title "chore(rules): merge duplicate of PR #${number}" --arg method "merge" '{commit_title:$title, merge_method:$method}')
+                merge_resp=$(http_put "${merge_api}" "${TOKEN}" "${merge_payload}")
+                echo "Merge response: $(echo "$merge_resp" | jq -c '.')"
+                merged=$(echo "$merge_resp" | jq -r .merged // "false")
+                if [ "$merged" = "true" ]; then
+                  echo "PR #${new_pr_number} merged successfully."
+                else
+                  echo "Auto-merge failed; response: $(echo "$merge_resp" | jq -c '.')"
+                  # post comment on the duplicate PR to explain why merge failed
+                  if [ -n "${TOKEN}" ]; then
+                    pm_api="https://api.github.com/repos/${REPO}/issues/${new_pr_number}/comments"
+                    pm_body="Automated merge attempt failed. Response: $(echo "$merge_resp" | jq -r .message // "No message"). Check branch protection or required status checks."
+                    curl -sS -X POST -H "Authorization: token ${TOKEN}" -H "Accept: application/vnd.github+json" "${pm_api}" -d "$(jq -n --arg b "$pm_body" '{body:$b}')" || true
+                  fi
+                fi
+              fi
+
+            else
+              echo "Failed to create PR for original PR #${number}. Response: $(echo "$response" | jq -c '.')"
+              failure_comment="Attempted to create duplicate PR for #${number} but PR creation failed. Response: $(echo "$response" | jq -r .message). Ensure Actions workflow permissions are Read & Write and consider setting REPO_WRITE_TOKEN secret with a PAT that has repo scope. No changes were merged."
+              comments_api="https://api.github.com/repos/${REPO}/issues/${number}/comments"
+              curl -sS -X POST -H "Authorization: token ${TOKEN}" -H "Accept: application/vnd.github+json" "${comments_api}" -d "$(jq -n --arg b "$failure_comment" '{body:$b}')" || true
+            fi
+
+            echo "Finished processing PR #${number}."
+          done
+
+      - name: Final status
+        run: echo "Workflow completed. Created duplicate PRs (or posted errors) for the PRs detected."

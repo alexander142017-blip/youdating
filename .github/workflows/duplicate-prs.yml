@@ -1,135 +1,153 @@
-  - name: Set up Node.js
-    uses: actions/setup-node@v4
-    with:
-      node-version: 18
+name: Duplicate open PRs and apply repository rules
 
-  - name: Install jq
-    run: |
-      sudo apt-get update
-      sudo apt-get install -y jq
+on:
+  workflow_dispatch:
 
-  - name: Ensure scripts are executable
-    run: |
-      chmod +x ./apply-updated-rules.sh || true
+permissions:
+  contents: write
+  pull-requests: write
 
-  - name: Duplicate open PRs and apply rules
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GITHUB_REPOSITORY: ${{ github.repository }}
-    run: |
-      set -euo pipefail
-      API="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+jobs:
+  duplicate-prs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (with token for pushes)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
-      echo "Listing open PRs..."
-      prs_json=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" "${API}/pulls?state=open&per_page=100")
-      count=$(echo "$prs_json" | jq 'length')
-      if [ "$count" -eq 0 ]; then
-        echo "No open PRs to process."
-        exit 0
-      fi
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
 
-      for i in $(seq 0 $((count - 1))); do
-        pr=$(echo "$prs_json" | jq ".[$i]")
-        number=$(echo "$pr" | jq -r '.number')
-        head_ref=$(echo "$pr" | jq -r '.head.ref')
-        head_repo_full=$(echo "$pr" | jq -r '.head.repo.full_name')
-        head_clone_url=$(echo "$pr" | jq -r '.head.repo.clone_url')
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
 
-        echo "=== Processing PR #${number} (head: ${head_repo_full}:${head_ref}) ==="
+      - name: Ensure scripts are executable
+        run: |
+          chmod +x ./apply-updated-rules.sh || true
 
-        # Prepare a fresh working tree
-        git checkout main
-        git fetch origin main
-        git reset --hard origin/main
+      - name: Duplicate open PRs and apply rules
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          API="https://api.github.com/repos/${GITHUB_REPOSITORY}"
 
-        NEW_BRANCH="rules-update/pr-${number}"
-
-        # Fetch and check out the PR branch (support same-repo and forks)
-        if [ "${head_repo_full}" = "${GITHUB_REPOSITORY}" ]; then
-          echo "PR originates from same repo — fetching branch ${head_ref}"
-          if git ls-remote --exit-code origin "refs/heads/${head_ref}" >/dev/null 2>&1; then
-            git fetch origin "refs/heads/${head_ref}:pr-src-${number}"
-            git checkout -b "${NEW_BRANCH}" "pr-src-${number}"
-          else
-            git fetch origin "refs/pull/${number}/head:pr-src-${number}" || { echo "failed to fetch PR ref for #${number}"; continue; }
-            git checkout -b "${NEW_BRANCH}" "pr-src-${number}"
+          echo "Listing open PRs..."
+          prs_json=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" "${API}/pulls?state=open&per_page=100")
+          count=$(echo "$prs_json" | jq 'length')
+          if [ "$count" -eq 0 ]; then
+            echo "No open PRs to process."
+            exit 0
           fi
-        else
-          echo "PR originates from a fork; adding temporary remote..."
-          REMOTE_NAME="fork${number}"
-          git remote add "${REMOTE_NAME}" "${head_clone_url}" || true
-          git fetch "${REMOTE_NAME}" "${head_ref}" || { echo "failed to fetch ${head_ref} from ${head_clone_url}"; git remote remove "${REMOTE_NAME}" || true; continue; }
-          git checkout -b "${NEW_BRANCH}" FETCH_HEAD
-          git remote remove "${REMOTE_NAME}" || true
-        fi
 
-        # Apply the rules
-        if [ ! -x "./apply-updated-rules.sh" ]; then
-          echo "apply-updated-rules.sh missing or not executable for PR #${number}; skipping."
-          git checkout main
-          continue
-        fi
+          for i in $(seq 0 $((count - 1))); do
+            pr=$(echo "$prs_json" | jq ".[$i]")
+            number=$(echo "$pr" | jq -r '.number')
+            head_ref=$(echo "$pr" | jq -r '.head.ref')
+            head_repo_full=$(echo "$pr" | jq -r '.head.repo.full_name')
+            head_clone_url=$(echo "$pr" | jq -r '.head.repo.clone_url')
 
-        if ! ./apply-updated-rules.sh; then
-          echo "apply-updated-rules.sh failed for PR #${number}; leaving branch for inspection and continuing."
-          git checkout main
-          continue
-        fi
+            echo "=== Processing PR #${number} (head: ${head_repo_full}:${head_ref}) ==="
 
-        # Install & build; if build fails, skip and leave branch for inspection
-        if ! npm ci --silent; then
-          echo "npm ci failed for PR #${number}; leaving branch local for inspection and continuing."
-          git checkout main
-          continue
-        fi
+            # Prepare a fresh working tree
+            git checkout main
+            git fetch origin main
+            git reset --hard origin/main
 
-        if ! npm run build --silent; then
-          echo "npm run build failed for PR #${number}; leaving branch local for inspection and continuing."
-          git checkout main
-          continue
-        fi
+            NEW_BRANCH="rules-update/pr-${number}"
 
-        # Commit staged changes (if any)
-        if git diff --staged --quiet; then
-          echo "No staged changes to commit for ${NEW_BRANCH}"
-        else
-          git commit -m "chore(rules): apply updated repository rules — duplicate of PR #${number}" || true
-        fi
+            # Fetch and check out the PR branch (support same-repo and forks)
+            if [ "${head_repo_full}" = "${GITHUB_REPOSITORY}" ]; then
+              echo "PR originates from same repo — fetching branch ${head_ref}"
+              if git ls-remote --exit-code origin "refs/heads/${head_ref}" >/dev/null 2>&1; then
+                git fetch origin "refs/heads/${head_ref}:pr-src-${number}"
+                git checkout -b "${NEW_BRANCH}" "pr-src-${number}"
+              else
+                git fetch origin "refs/pull/${number}/head:pr-src-${number}" || { echo "failed to fetch PR ref for #${number}"; continue; }
+                git checkout -b "${NEW_BRANCH}" "pr-src-${number}"
+              fi
+            else
+              echo "PR originates from a fork; adding temporary remote..."
+              REMOTE_NAME="fork${number}"
+              git remote add "${REMOTE_NAME}" "${head_clone_url}" || true
+              git fetch "${REMOTE_NAME}" "${head_ref}" || { echo "failed to fetch ${head_ref} from ${head_clone_url}"; git remote remove "${REMOTE_NAME}" || true; continue; }
+              git checkout -b "${NEW_BRANCH}" FETCH_HEAD
+              git remote remove "${REMOTE_NAME}" || true
+            fi
 
-        # Push branch
-        echo "Pushing new branch ${NEW_BRANCH}..."
-        git push -u origin "${NEW_BRANCH}"
+            # Apply the rules
+            if [ ! -x "./apply-updated-rules.sh" ]; then
+              echo "apply-updated-rules.sh missing or not executable for PR #${number}; skipping."
+              git checkout main
+              continue
+            fi
 
-        # Create new PR via REST
-        echo "Creating new PR for ${NEW_BRANCH}..."
-        create_response=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
-          -d "$(jq -nc --arg t "rules: apply updated rules — duplicate of #${number}" --arg b "This PR duplicates #${number} with the repository's updated rules applied. Build verified in CI." --arg head "${NEW_BRANCH}" --arg base "main" '{title:$t,body:$b,head:$head,base:$base}')" \
-          "${API}/pulls")
+            if ! ./apply-updated-rules.sh; then
+              echo "apply-updated-rules.sh failed for PR #${number}; leaving branch for inspection and continuing."
+              git checkout main
+              continue
+            fi
 
-        new_pr_url=$(echo "$create_response" | jq -r '.html_url // empty')
-        if [ -z "$new_pr_url" ]; then
-          echo "Failed to create new PR for branch ${NEW_BRANCH}:"
-          echo "$create_response"
-          git checkout main
-          continue
-        fi
+            # Install & build; if build fails, skip and leave branch for inspection
+            if ! npm ci --silent; then
+              echo "npm ci failed for PR #${number}; leaving branch local for inspection and continuing."
+              git checkout main
+              continue
+            fi
 
-        echo "New PR created: ${new_pr_url}"
+            if ! npm run build --silent; then
+              echo "npm run build failed for PR #${number}; leaving branch local for inspection and continuing."
+              git checkout main
+              continue
+            fi
 
-        # Comment on original PR
-        comment_body="Closing in favor of updated PR: ${new_pr_url}\n\nThis duplicate applies the repository's updated rules and was built in CI. Please review and merge the updated PR."
-        curl -s -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
-          -d "$(jq -nc --arg body "$comment_body" '{body:$body}')" \
-          "${API}/issues/${number}/comments" >/dev/null || true
+            # Commit staged changes (if any)
+            if git diff --staged --quiet; then
+              echo "No staged changes to commit for ${NEW_BRANCH}"
+            else
+              git commit -m "chore(rules): apply updated repository rules — duplicate of PR #${number}" || true
+            fi
 
-        # Close original PR
-        curl -s -X PATCH -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
-          -d '{"state":"closed"}' \
-          "${API}/pulls/${number}" >/dev/null || true
+            # Push branch
+            echo "Pushing new branch ${NEW_BRANCH}..."
+            git push -u origin "${NEW_BRANCH}"
 
-        echo "Finished processing PR #${number}."
-        git checkout main
-        git reset --hard origin/main
-      done
+            # Create new PR via REST
+            echo "Creating new PR for ${NEW_BRANCH}..."
+            create_response=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
+              -d "$(jq -nc --arg t "rules: apply updated rules — duplicate of #${number}" --arg b "This PR duplicates #${number} with the repository's updated rules applied. Build verified in CI." --arg head "${NEW_BRANCH}" --arg base "main" '{title:$t,body:$b,head:$head,base:$base}')" \
+              "${API}/pulls")
 
-      echo "Done processing all open PRs."
+            new_pr_url=$(echo "$create_response" | jq -r '.html_url // empty')
+            if [ -z "$new_pr_url" ]; then
+              echo "Failed to create new PR for branch ${NEW_BRANCH}:"
+              echo "$create_response"
+              git checkout main
+              continue
+            fi
+
+            echo "New PR created: ${new_pr_url}"
+
+            # Comment on original PR
+            comment_body="Closing in favor of updated PR: ${new_pr_url}\n\nThis duplicate applies the repository's updated rules and was built in CI. Please review and merge the updated PR."
+            curl -s -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
+              -d "$(jq -nc --arg body "$comment_body" '{body:$body}')" \
+              "${API}/issues/${number}/comments" >/dev/null || true
+
+            # Close original PR
+            curl -s -X PATCH -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
+              -d '{"state":"closed"}' \
+              "${API}/pulls/${number}" >/dev/null || true
+
+            echo "Finished processing PR #${number}."
+            git checkout main
+            git reset --hard origin/main
+          done
+
+          echo "Done processing all open PRs."

@@ -14,11 +14,3 @@ Quick start
 Notes
 - This repo no longer uses the Base44 SDK. API helpers live in src/api/* and are minimal; update them to match your DB schema and integrations.
 - Do not commit secrets to the repo.
-
-Current stack: Vite + React + Tailwind + Supabase.
-
-Required env vars (for local dev):
-- VITE_SUPABASE_URL
-- VITE_SUPABASE_ANON_KEY
-
-Legacy migration scripts related to the previous Base44 SDK have been archived in scripts/archive/ and .github/archive/. These are historical references only and are not executed by CI/workflows.

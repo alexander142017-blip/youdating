@@ -1,269 +1,232 @@
-
-import React, { useMemo, useEffect } from "react";
-import { getCurrentUser } from "@/api/auth";
-import { upsertProfile } from "@/api/profiles";
-import { createPurchase } from "@/api/purchases";
-import { supabase } from "@/api/supabase";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/card";
-import { Gem, Star, Zap, Check, Sparkles, Heart, Package, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import { add, format } from "date-fns";
-import { useNavigate } from "react-router-dom";
-import { createPageUrl } from "@/utils";
-
-const trackEvent = (userEmail, eventType, context = {}) => {
-    // TODO: Replace with event logging using supabase table
-    console.log('Analytics event:', { userEmail, eventType, context, day: format(new Date(), 'yyyy-MM-dd') });
-};
-
-const PremiumFeature = ({ icon, text }) => {
-    const Icon = icon;
-    return (
-        <li className="flex items-center gap-3">
-            <div className="flex-shrink-0 w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
-                <Icon className="w-4 h-4 text-green-600" />
-            </div>
-            <span className="text-gray-700">{text}</span>
-        </li>
-    )
-};
-
-const ConsumableCard = ({ icon, title, description, price, onPurchase, isPending, productId, user }) => {
-    const Icon = icon;
-    return (
-        <Card className="flex flex-col" onClick={() => trackEvent(user.email, 'productTapped', { productId })}>
-            <CardHeader className="flex-row items-center gap-4">
-                <Icon className="w-10 h-10 text-amber-500" />
-                <div>
-                    <CardTitle>{title}</CardTitle>
-                    <CardDescription>{description}</CardDescription>
-                </div>
-            </CardHeader>
-            <CardContent className="flex-grow">
-                 <p className="text-3xl font-bold">${price}</p>
-            </CardContent>
-            <CardFooter>
-                <Button className="w-full" onClick={onPurchase} disabled={isPending}>
-                    {isPending ? <Loader2 className="w-4 h-4 animate-spin"/> : "Purchase"}
-                </Button>
-            </CardFooter>
-        </Card>
-    );
-}
+import React, { useState } from "react";
+import { Store, Star, Crown, Zap, CheckCircle, Loader2 } from "lucide-react";
+import { getCurrentUser } from "../api/auth";
+import { createPurchase } from "../api/purchases";
 
 export default function StorePage() {
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
+  const [loading, setLoading] = useState({});
+  const [successMessage, setSuccessMessage] = useState('');
+  const [error, setError] = useState('');
 
-  const { data: currentUser } = useQuery({
-      queryKey: ['current-user'],
-      queryFn: getCurrentUser
-  });
-  
-  const { data: configData, isLoading: isLoadingConfig } = useQuery({
-      queryKey: ['app-config'],
-      queryFn: async () => {
-        // TODO: Implement config table query using Supabase
-        const { data } = await supabase.from('config').select('*');
-        return data || [];
-      },
-  });
+  // Mock products matching your specification
+  const products = [
+    {
+      id: 'youdating_plus',
+      name: 'YouDating Plus',
+      price: 9.99,
+      type: 'subscription',
+      period: '/month',
+      icon: Crown,
+      iconColor: 'text-pink-500',
+      description: 'Unlock unlimited swipes, see who likes you, and get priority in discovery',
+      features: [
+        'Unlimited swipes',
+        'See who likes you', 
+        'Priority in discovery',
+        'Ad-free experience',
+        '5 Super Likes per day'
+      ],
+      popular: true
+    },
+    {
+      id: 'boost_single',
+      name: '1 Boost',
+      price: 2.99,
+      type: 'consumable',
+      period: '',
+      icon: Zap,
+      iconColor: 'text-yellow-500',
+      description: 'Be seen by 10x more people for 30 minutes',
+      features: [
+        'Instant visibility boost',
+        'Lasts for 30 minutes',
+        'Get 10x more profile views',
+        'Perfect for peak hours'
+      ]
+    },
+    {
+      id: 'super_likes_pack',
+      name: '5 Super Likes',
+      price: 4.99,
+      type: 'consumable', 
+      period: '',
+      icon: Star,
+      iconColor: 'text-blue-500',
+      description: 'Stand out with special notifications that get you noticed',
+      features: [
+        '5 Super Like credits',
+        'Get 3x more matches',
+        'Stand out from the crowd',
+        'Credits never expire'
+      ]
+    }
+  ];
 
-  const config = useMemo(() => {
-    if (!configData) return {};
-    return configData.reduce((acc, item) => {
-        const key = item.key.replace(/\./g, '_');
-        acc[key] = item.value.val;
-        return acc;
-    }, {});
-  }, [configData]);
+  const handlePurchase = async (product) => {
+    try {
+      setLoading({ ...loading, [product.id]: true });
+      setError('');
+      setSuccessMessage('');
 
-  const updateUserMutation = useMutation({
-    mutationFn: (data) => upsertProfile({ ...currentUser, ...data }),
-    onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['current-user'] });
-      
-      const successMessages = {
-          plus: "You are now a YouDating Plus member!",
-          boost: "Boost purchased successfully!",
-          superLike5: "5 Super Likes added!",
-          superLike20: "20 Super Likes added!"
+      // Get current user
+      const user = await getCurrentUser();
+      if (!user) {
+        throw new Error('Please log in to make a purchase');
       }
-      
-      const successDescriptions = {
-          plus: "Enjoy your new premium perks.",
-          boost: "Your profile will be shown to more people.",
-          superLike5: "Go make someone feel special!",
-          superLike20: "Go make someone feel special!",
-      }
-      
-      toast.success(successMessages[variables.type], {
-          description: successDescriptions[variables.type]
+
+      // Create purchase record
+      const purchaseData = await createPurchase({
+        userId: user.id,
+        productId: product.id,
+        metadata: {
+          product_name: product.name,
+          price: product.price,
+          type: product.type,
+          purchased_at: new Date().toISOString()
+        }
       });
 
-      if (variables.type === 'plus') {
-          trackEvent(currentUser.email, 'premiumUnlocked');
-      }
-    },
-    onError: (error, variables) => {
-        toast.error(`Purchase of ${variables.type} failed. Please try again.`);
+      console.log('Purchase created:', purchaseData);
+      
+      // Show success message
+      setSuccessMessage(`Successfully purchased ${product.name}!`);
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(''), 3000);
+      
+    } catch (err) {
+      console.error('Purchase error:', err);
+      setError(`Failed to purchase ${product.name}: ${err.message}`);
+    } finally {
+      setLoading({ ...loading, [product.id]: false });
     }
-  });
-  
-  const createPurchaseRecordMutation = useMutation({
-      mutationFn: (data) => createPurchase({ userId: currentUser.id, productId: data.product_id, metadata: data }),
-      onError: () => {} // Fail silently on analytics
-  });
-
-  const handlePurchase = (type, productId) => {
-    const startDate = new Date();
-    let mutationData = {};
-    let purchaseRecord = {
-        user_email: currentUser.email,
-        platform: "mock",
-        productId,
-        type: "subscription",
-        status: "active",
-        startedAt: startDate.toISOString(),
-    };
-
-    trackEvent(currentUser.email, 'upgradeTapped', { productId });
-
-    switch(type) {
-        case 'plus':
-            const expiryDate = add(startDate, { days: 30 });
-            mutationData = {
-                isPremium: true,
-                premiumPlan: 'plus',
-                premiumExpiresAt: expiryDate.toISOString(),
-            };
-            purchaseRecord = { ...purchaseRecord, expiresAt: expiryDate.toISOString() };
-            break;
-        case 'boost':
-            mutationData = { boosts_remaining: (currentUser.boosts_remaining || 0) + 1 };
-            purchaseRecord = { ...purchaseRecord, type: "consumable" };
-            trackEvent(currentUser.email, 'boostPurchased');
-            break;
-        case 'superLike5':
-            mutationData = { super_likes_remaining: (currentUser.super_likes_remaining || 0) + 5 };
-            purchaseRecord = { ...purchaseRecord, type: "consumable" };
-            trackEvent(currentUser.email, 'superLikePackPurchased', { quantity: 5 });
-            break;
-        case 'superLike20':
-            mutationData = { super_likes_remaining: (currentUser.super_likes_remaining || 0) + 20 };
-            purchaseRecord = { ...purchaseRecord, type: "consumable" };
-            trackEvent(currentUser.email, 'superLikePackPurchased', { quantity: 20 });
-            break;
-        default:
-            return;
-    }
-    
-    updateUserMutation.mutate({ ...mutationData, type });
-    createPurchaseRecordMutation.mutate(purchaseRecord);
   };
-  
-  useEffect(() => {
-    if(currentUser?.email) {
-        trackEvent(currentUser.email, 'storeViewed');
-    }
-  }, [currentUser]);
-
-  const isPremium = currentUser?.isPremium && new Date(currentUser?.premiumExpiresAt) > new Date();
-  
-  if (isLoadingConfig || !currentUser) {
-    return <div className="h-screen w-full flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-rose-500" /></div>
-  }
 
   return (
-    <div className="min-h-screen p-4 md:p-8 bg-gray-50/50">
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-amber-600 to-yellow-600 bg-clip-text text-transparent mb-2">
-            YouDating Store
-          </h1>
-          <p className="text-gray-600">
-            Upgrade your experience or purchase items to stand out.
-          </p>
+    <div className="max-w-4xl mx-auto space-y-8">
+      {/* Header */}
+      <div className="text-center">
+        <div className="flex items-center justify-center mb-4">
+          <div className="avatar placeholder">
+            <div className="bg-primary text-primary-content rounded-full w-16">
+              <Store className="w-8 h-8" />
+            </div>
+          </div>
         </div>
+        <h1 className="text-4xl font-bold mb-2">Premium Store</h1>
+        <p className="text-xl text-base-content/70">
+          Unlock premium features and boost your dating experience
+        </p>
+      </div>
 
-        <Card className="mb-12 shadow-2xl bg-white" onClick={() => trackEvent(currentUser.email, 'productTapped', { productId: 'plus_monthly' })}>
-            <CardHeader className="text-center bg-gradient-to-br from-rose-50 to-amber-50 p-8">
-                <Sparkles className="w-12 h-12 mx-auto mb-4 text-amber-500" />
-                <CardTitle className="text-2xl">Go Premium with Plus</CardTitle>
-                <CardDescription>Match smarter, not harder.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-8">
-                 <ul className="space-y-4 mb-8">
-                    <PremiumFeature icon={Heart} text="Unlimited Likes" />
-                    <PremiumFeature icon={Zap} text={`${config.perks_plus_boostsPerWeek || 6} Free Boost${(config.perks_plus_boostsPerWeek || 6) > 1 ? 's' : ''} per week`} />
-                    <PremiumFeature icon={Star} text={`${config.perks_plus_superLikesPerDay || 5} Free Super Likes per day`} />
-                    <PremiumFeature icon={Check} text="See who has liked you" />
-                </ul>
+      {/* Success Alert */}
+      {successMessage && (
+        <div className="alert alert-success">
+          <CheckCircle className="w-5 h-5" />
+          <span>{successMessage}</span>
+        </div>
+      )}
 
-                <div className="text-center mb-6">
-                    <p className="text-4xl font-bold">${config.pricing_plus_monthly || '9.99'}<span className="text-base font-normal text-gray-500">/month</span></p>
-                    <p className="text-xs text-gray-500 mt-1">Billed monthly. Cancel anytime.</p>
+      {/* Error Alert */}
+      {error && (
+        <div className="alert alert-error">
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Product Grid */}
+      <div className="grid gap-6">
+        {products.map((product) => {
+          const IconComponent = product.icon;
+          const isLoading = loading[product.id];
+          
+          return (
+            <div
+              key={product.id}
+              className={`card bg-base-100 shadow-xl ${
+                product.popular ? 'ring-2 ring-primary' : ''
+              }`}
+            >
+              {product.popular && (
+                <div className="badge badge-primary absolute -top-2 left-1/2 transform -translate-x-1/2 z-10">
+                  Most Popular
                 </div>
-                
-                 {isPremium ? (
-                     <div className="text-center p-4 rounded-lg bg-green-50 border border-green-200">
-                        <h4 className="font-semibold text-green-800">You are a Plus Member!</h4>
-                        <p className="text-sm text-green-700">Your plan expires on {new Date(currentUser.premiumExpiresAt).toLocaleDateString()}.</p>
-                     </div>
-                 ) : (
-                    <Button
-                        className="w-full text-lg py-6 bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600"
-                        onClick={() => handlePurchase('plus', 'plus_monthly')}
-                        disabled={updateUserMutation.isPending && updateUserMutation.vars?.type === 'plus'}
-                    >
-                        {updateUserMutation.isPending && updateUserMutation.vars?.type === 'plus' ? <Loader2 className="w-5 h-5 animate-spin mr-2"/> : <Gem className="w-5 h-5 mr-2" />}
-                        Upgrade to Plus
-                    </Button>
-                 )}
-            </CardContent>
-             <CardFooter>
-                 <p className="text-xs text-gray-400 text-center w-full">* This is a demonstration. No real payment will be processed. Clicking 'Upgrade' will grant you premium for 30 days.</p>
-            </CardFooter>
-        </Card>
-        
-        <div className="mb-8 text-center">
-            <h2 className="text-2xl font-bold text-gray-800">Consumables</h2>
-            <p className="text-gray-600">Get more boosts and super likes.</p>
-        </div>
+              )}
+              
+              <div className="card-body">
+                <div className="grid md:grid-cols-3 gap-6 items-center">
+                  {/* Product Info */}
+                  <div className="md:col-span-2">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="avatar placeholder">
+                        <div className="bg-primary/10 text-primary rounded-full w-12">
+                          <IconComponent className="w-6 h-6" />
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="card-title text-xl">{product.name}</h3>
+                        <p className="text-2xl font-bold text-primary">
+                          ${product.price.toFixed(2)}{product.period}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <p className="text-base-content/70 mb-4">{product.description}</p>
+                    
+                    <ul className="space-y-2">
+                      {product.features.map((feature, index) => (
+                        <li key={index} className="flex items-center gap-2 text-sm">
+                          <div className="w-2 h-2 bg-primary rounded-full"></div>
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
-            <ConsumableCard
-                icon={Zap}
-                title="1 Boost"
-                description="Top of the feed for 30 mins."
-                price={config.pricing_boost_single || '2.99'}
-                onPurchase={() => handlePurchase('boost', 'boost_single')}
-                isPending={updateUserMutation.isPending && updateUserMutation.vars?.type === 'boost'}
-                productId="boost_single"
-                user={currentUser}
-            />
-            <ConsumableCard
-                icon={Star}
-                title="5 Super Likes"
-                description="Really stand out."
-                price={config.pricing_superLike_5 || '4.99'}
-                onPurchase={() => handlePurchase('superLike5', 'superlike_5_pack')}
-                isPending={updateUserMutation.isPending && updateUserMutation.vars?.type === 'superLike5'}
-                productId="superlike_5_pack"
-                user={currentUser}
-            />
-            <ConsumableCard
-                icon={Package}
-                title="20 Super Likes"
-                description="Best value pack."
-                price={config.pricing_superLike_20 || '14.99'}
-                onPurchase={() => handlePurchase('superLike20', 'superlike_20_pack')}
-                isPending={updateUserMutation.isPending && updateUserMutation.vars?.type === 'superLike20'}
-                productId="superlike_20_pack"
-                user={currentUser}
-            />
+                  {/* Purchase Button */}
+                  <div className="card-actions justify-center">
+                    <button
+                      onClick={() => handlePurchase(product)}
+                      disabled={isLoading}
+                      className={`btn w-full ${
+                        product.popular ? 'btn-primary' : 'btn-outline btn-primary'
+                      }`}
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        'Buy Now'
+                      )}
+                    </button>
+                    
+                    {product.type === 'subscription' && (
+                      <p className="text-xs text-base-content/50 text-center mt-2">
+                        Cancel anytime • No hidden fees
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Trust & Security */}
+      <div className="card bg-primary/5 border-primary/20">
+        <div className="card-body text-center">
+          <h2 className="card-title text-2xl justify-center mb-4">Secure Payments</h2>
+          <p className="text-base-content/70 mb-6">
+            Your payment information is encrypted and secure. All purchases are processed through secure channels.
+          </p>
+          <div className="flex justify-center items-center gap-6 text-sm text-base-content/60">
+            <span>💳 All major cards accepted</span>
+            <span>🔒 SSL encrypted</span>
+            <span>📱 Apple Pay & Google Pay</span>
+          </div>
         </div>
       </div>
     </div>

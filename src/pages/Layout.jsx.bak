@@ -1,0 +1,315 @@
+
+import React, { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+import { 
+  Heart, 
+  MessageCircle, 
+  Users, 
+  User, 
+  Compass,
+  Store as StoreIcon, 
+  Menu, 
+  X, 
+  Loader2,
+  Bell,
+  Settings
+} from "lucide-react";
+import { getCurrentUser } from "@/api/auth";
+import { useQuery } from "@tanstack/react-query";
+
+const navigationItems = [
+  {
+    title: "Discover",
+    url: createPageUrl("discover"),
+    icon: Compass,
+    description: "Find new matches"
+  },
+  {
+    title: "Matches",
+    url: createPageUrl("matches"),
+    icon: Heart,
+    description: "Your matches"
+  },
+  {
+    title: "Messages",
+    url: createPageUrl("messages"),
+    icon: MessageCircle,
+    description: "Chat with matches"
+  },
+  {
+    title: "Profile",
+    url: createPageUrl("profile"),
+    icon: User,
+    description: "Edit your profile"
+  },
+  {
+    title: "Store",
+    url: createPageUrl("store"),
+    icon: StoreIcon,
+    description: "Premium features"
+  },
+];
+
+export default function Layout() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const { data: currentUser, isLoading, isError } = useQuery({
+    queryKey: ['current-user'],
+    queryFn: getCurrentUser,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (!isLoading && currentUser && !currentUser.profile_completed) {
+      navigate(createPageUrl('onboarding'));
+    }
+  }, [currentUser, isLoading, navigate]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-base-200">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
+          <p className="text-base-content font-medium">Loading YouDating...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If user is not authenticated or hasn't completed onboarding, show content without layout
+  if (!currentUser || !currentUser.profile_completed) {
+    return <Outlet />;
+  }
+
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
+  const isActivePage = (url) => location.pathname === url;
+
+  return (
+    <div className="min-h-screen bg-base-200">
+      {/* Top Navigation Header */}
+      <div className="navbar bg-base-100 shadow-sm sticky top-0 z-50">
+        <div className="navbar-start">
+          {/* Mobile Menu Button */}
+          <div className="dropdown lg:hidden">
+            <div 
+              tabIndex={0} 
+              role="button" 
+              className="btn btn-ghost btn-circle"
+              onClick={toggleMobileMenu}
+            >
+              <div className="relative w-6 h-6">
+                <Menu className={`w-6 h-6 absolute transition-all duration-300 ${isMobileMenuOpen ? 'rotate-45 opacity-0' : 'rotate-0 opacity-100'}`} />
+                <X className={`w-6 h-6 absolute transition-all duration-300 ${isMobileMenuOpen ? 'rotate-0 opacity-100' : '-rotate-45 opacity-0'}`} />
+              </div>
+            </div>
+            {/* Mobile Dropdown Menu */}
+            {isMobileMenuOpen && (
+              <ul className="menu dropdown-content bg-base-100 rounded-box z-[1] w-64 p-2 shadow-lg mt-3">
+                {navigationItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = isActivePage(item.url);
+                  return (
+                    <li key={item.title}>
+                      <Link
+                        to={item.url}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className={`flex items-center gap-3 ${isActive ? 'bg-primary text-primary-content' : ''}`}
+                      >
+                        <Icon className="w-5 h-5" />
+                        <div>
+                          <div className="font-medium">{item.title}</div>
+                          <div className="text-xs opacity-60">{item.description}</div>
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+            {/* Logo */}
+            <Link to={createPageUrl("discover")} className="flex items-center gap-3 group">
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Heart className="w-8 h-8 text-pink-500 fill-pink-500 transition-transform duration-200 group-hover:scale-110" />
+                  <div className="absolute -inset-1 bg-pink-200 rounded-full opacity-0 group-hover:opacity-30 transition-opacity duration-200"></div>
+                </div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-pink-600 to-rose-600 bg-clip-text text-transparent group-hover:from-pink-700 group-hover:to-rose-700 transition-all duration-200">
+                  YouDating
+                </h1>
+              </div>
+            </Link>
+
+            {/* Desktop Navigation */}
+            <nav className="hidden lg:flex items-center space-x-2">
+              {navigationItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = isActivePage(item.url);
+                return (
+                  <Link
+                    key={item.title}
+                    to={item.url}
+                    className={`group relative flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 transform hover:scale-105 ${
+                      isActive
+                        ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-lg shadow-pink-200'
+                        : 'text-gray-700 hover:text-pink-600 hover:bg-gradient-to-r hover:from-pink-50 hover:to-rose-50 hover:shadow-md'
+                    }`}
+                    title={item.description}
+                  >
+                    <Icon className={`w-5 h-5 transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
+                    <span>{item.title}</span>
+                    {isActive && (
+                      <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-white rounded-full opacity-80"></div>
+                    )}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {/* User Actions */}
+            <div className="hidden lg:flex items-center gap-2">
+              <button 
+                className="p-2.5 rounded-xl text-gray-600 hover:text-pink-600 hover:bg-pink-50 transition-all duration-200 hover:scale-105"
+                title="Notifications"
+              >
+                <Bell className="w-5 h-5" />
+              </button>
+              <button 
+                className="p-2.5 rounded-xl text-gray-600 hover:text-pink-600 hover:bg-pink-50 transition-all duration-200 hover:scale-105"
+                title="Settings"
+              >
+                <Settings className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Mobile Menu Button */}
+            <button
+              onClick={toggleMobileMenu}
+              className="lg:hidden p-2.5 rounded-xl text-gray-600 hover:text-pink-600 hover:bg-pink-50 transition-all duration-200 hover:scale-105 active:scale-95"
+              aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+            >
+              <div className="relative w-6 h-6">
+                <Menu className={`w-6 h-6 absolute transition-all duration-300 ${isMobileMenuOpen ? 'rotate-45 opacity-0' : 'rotate-0 opacity-100'}`} />
+                <X className={`w-6 h-6 absolute transition-all duration-300 ${isMobileMenuOpen ? 'rotate-0 opacity-100' : '-rotate-45 opacity-0'}`} />
+              </div>
+            </button>
+          </div>
+
+          {/* Mobile Navigation Menu */}
+          <div className={`lg:hidden overflow-hidden transition-all duration-300 ease-in-out ${
+            isMobileMenuOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+          }`}>
+            <div className="bg-white border-t border-gray-100 shadow-lg">
+              <div className="px-4 py-3 space-y-1">
+                {navigationItems.map((item, index) => {
+                  const Icon = item.icon;
+                  const isActive = isActivePage(item.url);
+                  return (
+                    <Link
+                      key={item.title}
+                      to={item.url}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex items-center gap-4 px-4 py-4 rounded-xl text-base font-medium transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] ${
+                        isActive
+                          ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-md'
+                          : 'text-gray-700 hover:text-pink-600 hover:bg-gradient-to-r hover:from-pink-50 hover:to-rose-50'
+                      }`}
+                      style={{
+                        animationDelay: `${index * 50}ms`,
+                        animation: isMobileMenuOpen ? 'slideInLeft 0.3s ease-out forwards' : 'none'
+                      }}
+                    >
+                      <div className={`p-2 rounded-lg ${isActive ? 'bg-white/20' : 'bg-gray-100'}`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-base font-medium">{item.title}</div>
+                        <div className={`text-xs ${isActive ? 'text-pink-100' : 'text-gray-500'}`}>
+                          {item.description}
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+                
+                {/* Mobile User Actions */}
+                <div className="pt-3 mt-3 border-t border-gray-100">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-700 hover:text-pink-600 hover:bg-pink-50 transition-all duration-200">
+                      <div className="p-2 bg-gray-100 rounded-lg">
+                        <Bell className="w-4 h-4" />
+                      </div>
+                      <span className="text-sm font-medium">Notifications</span>
+                    </button>
+                    <button className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-700 hover:text-pink-600 hover:bg-pink-50 transition-all duration-200">
+                      <div className="p-2 bg-gray-100 rounded-lg">
+                        <Settings className="w-4 h-4" />
+                      </div>
+                      <span className="text-sm font-medium">Settings</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="min-h-[calc(100vh-12rem)]">
+          <Outlet />
+        </div>
+      </main>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-gray-200 shadow-lg">
+        <div className="flex justify-around px-2 py-1">
+          {navigationItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = isActivePage(item.url);
+            return (
+              <Link
+                key={item.title}
+                to={item.url}
+                className={`relative flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition-all duration-300 transform active:scale-95 ${
+                  isActive
+                    ? 'text-pink-600 scale-105'
+                    : 'text-gray-500 hover:text-pink-600 hover:scale-105'
+                }`}
+              >
+                <div className={`relative transition-all duration-200 ${isActive ? 'animate-bounce' : ''}`}>
+                  <Icon className={`w-6 h-6 transition-all duration-200 ${
+                    isActive ? 'scale-110' : ''
+                  }`} />
+                  {isActive && (
+                    <div className="absolute -inset-2 bg-pink-100 rounded-full -z-10 animate-pulse"></div>
+                  )}
+                </div>
+                <span className={`text-xs font-medium transition-all duration-200 ${
+                  isActive ? 'text-pink-600 font-semibold' : ''
+                }`}>
+                  {item.title}
+                </span>
+                {isActive && (
+                  <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-pink-500 rounded-full animate-pulse"></div>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+
+      {/* Bottom padding for mobile navigation */}
+      <div className="md:hidden h-20" />
+    </div>
+  );
+}
+

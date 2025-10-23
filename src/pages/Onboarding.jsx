@@ -5,6 +5,7 @@ import { supabase } from '@/api/supabase';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { toE164 } from '@/utils/phone';
+import { uploadProfilePhoto } from '../utils/upload';
 import { 
   Loader2, 
   ArrowLeft, 
@@ -79,35 +80,43 @@ export default function OnboardingPage() {
         if (error) setError("");
     };
 
-    const uploadPhotoToSupabase = async (file) => {
+    // Use the new RLS-compliant upload utility
+
+    const handleAddPhoto = async (file) => {
+        setError("");
+        setUploading(true);
         try {
-            // Get current user for folder organization
-            const user = await getCurrentSessionUser();
-            if (!user) throw new Error("User not authenticated");
-
-            // Generate unique filename
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-
-            // Upload to Supabase Storage
-            const { data, error } = await supabase.storage
-                .from('profile-photos')
-                .upload(fileName, file, {
-                    cacheControl: '3600',
-                    upsert: false
-                });
-
+            const { data: { session } } = await supabase.auth.getSession();
+            const userId = session?.user?.id;
+            if (!userId) throw new Error("Not signed in");
+            
+            // Enforce max 6 photos
+            const current = Array.isArray(formData.photos) ? formData.photos : [];
+            if (current.length >= 6) throw new Error("You can upload up to 6 photos.");
+            
+            const { url } = await uploadProfilePhoto(userId, file);
+            const nextPhotos = [...current, url];
+            
+            // Update profile in database with new photos array
+            const { error } = await supabase
+                .from("profiles")
+                .update({ photos: nextPhotos })
+                .eq("user_id", userId);
             if (error) throw error;
-
-            // Get public URL
-            const { data: { publicUrl } } = supabase.storage
-                .from('profile-photos')
-                .getPublicUrl(data.path);
-
-            return publicUrl;
-        } catch (error) {
-            console.error('Upload error:', error);
-            throw error;
+            
+            // Update local state
+            setFormData(prev => ({ ...prev, photos: nextPhotos }));
+            
+        } catch (e) {
+            const msg = e?.message || "Upload failed";
+            setError(msg.includes("row-level security")
+                ? "Photo upload blocked by security policy. Please sign in again and try."
+                : msg.includes("Bucket not found")
+                ? "Photo storage is not configured. Please contact support."
+                : msg);
+            console.error(e);
+        } finally {
+            setUploading(false);
         }
     };
 
@@ -116,33 +125,25 @@ export default function OnboardingPage() {
         if (files.length === 0) return;
 
         try {
-            setUploading(true);
-            setError("");
-
-            const uploadPromises = files.map(file => {
-                // Validate file
+            // Validate files
+            for (const file of files) {
                 if (file.size > 5 * 1024 * 1024) { // 5MB limit
                     throw new Error(`File ${file.name} is too large. Maximum size is 5MB.`);
                 }
                 if (!file.type.startsWith('image/')) {
                     throw new Error(`File ${file.name} is not an image.`);
                 }
-                return uploadPhotoToSupabase(file);
-            });
+            }
 
-            const uploadedUrls = await Promise.all(uploadPromises);
-            
-            // Add to photos array (max 6 photos)
-            setFormData(prev => ({
-                ...prev,
-                photos: [...prev.photos, ...uploadedUrls].slice(0, 6)
-            }));
+            // Upload files one by one to avoid overwhelming the UI
+            for (const file of files) {
+                await handleAddPhoto(file);
+            }
 
         } catch (err) {
             console.error("Photo upload error:", err);
             setError(err.message || "Failed to upload photo. Please try again.");
         } finally {
-            setUploading(false);
             // Reset file input
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
@@ -362,15 +363,18 @@ export default function OnboardingPage() {
         }
     };
 
-    const handleSubmit = async () => {
-        if (!validateStep(currentStep)) {
-            return;
-        }
-
+    const handleFinishOnboarding = async () => {
+        setLoading(true);
+        setError("");
         try {
-            setLoading(true);
-            setError("");
-
+            const { data: { session } } = await supabase.auth.getSession();
+            const userId = session?.user?.id;
+            if (!userId) throw new Error("Not signed in");
+            
+            // Must have at least 1 photo
+            const photos = Array.isArray(formData.photos) ? formData.photos : [];
+            if (photos.length < 1) throw new Error("Please add at least one photo.");
+            
             // Calculate age from date of birth
             const birthDate = new Date(formData.date_of_birth);
             const today = new Date();
@@ -380,56 +384,60 @@ export default function OnboardingPage() {
                 age--;
             }
 
-            // Prepare onboarding data
+            // Prepare onboarding data with all required fields
             const onboardingData = {
                 first_name: formData.first_name.trim(),
-                name: formData.first_name.trim(), // Alias for compatibility
+                name: formData.first_name.trim(),
                 date_of_birth: formData.date_of_birth,
                 age: age,
                 gender: formData.gender,
                 looking_for: formData.looking_for,
                 city: formData.city.trim(),
                 bio: formData.bio.trim(),
-                photos: formData.photos, // JSONB array of photo URLs
-                profile_photo_url: formData.photos[0] || null, // First photo as main
-                has_photos: formData.photos.length > 0,
+                photos: photos,
+                profile_photo_url: photos[0] || null,
+                has_photos: photos.length > 0,
                 phone_e164: formData.phone,
                 phone_verified: formData.phone_verified,
-                onboarding_complete: true,
-                profile_completed: true,
-                show_on_discover: true, // Default to visible in discovery
+                show_on_discover: true,
                 show_distance: true,
                 show_age: true
             };
 
-            // Verify user session before completing onboarding
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session || !session.user) {
-                setError("Session expired. Please log in again.");
-                navigate(createPageUrl("auth"));
-                return;
-            }
-
-            const userId = session.user.id;
-
-            // Complete onboarding
+            // Complete onboarding through API
             await completeOnboarding(onboardingData);
 
-            // Ensure onboarding_complete is set to true
-            await supabase
+            // Mark onboarding as complete
+            const { error } = await supabase
                 .from("profiles")
                 .update({ onboarding_complete: true })
                 .eq("user_id", userId);
-
-            // Navigate to discover page
+            if (error) throw error;
+            
             navigate("/discover");
             
-        } catch (err) {
-            console.error("Onboarding completion error:", err);
-            setError(err.message || "Failed to complete onboarding. Please try again.");
+        } catch (e) {
+            const msg = e?.message || "Could not finish onboarding";
+            setError(msg);
+            console.error(e);
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleSubmit = async () => {
+        if (!validateStep(currentStep)) {
+            return;
+        }
+
+        // If we're on the final step (photos), use the finish handler
+        if (currentStep === TOTAL_STEPS) {
+            await handleFinishOnboarding();
+            return;
+        }
+
+        // Otherwise, just advance to next step
+        setCurrentStep(prev => Math.min(prev + 1, TOTAL_STEPS));
     };
 
     const genderOptions = [
@@ -637,14 +645,25 @@ export default function OnboardingPage() {
                                     disabled={uploading}
                                 />
 
-                                {/* Upload Instructions */}
+                                {/* Photo Status & Instructions */}
                                 <div className="bg-primary/5 rounded-lg p-4">
                                     <div className="flex items-start gap-3">
                                         <Camera className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
                                         <div className="text-sm">
-                                            <p className="font-medium mb-1">Photo Tips</p>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <p className="font-medium">Photo Tips</p>
+                                                <div className="badge badge-primary badge-sm">
+                                                    {formData.photos.length}/6 photos
+                                                </div>
+                                            </div>
+                                            {formData.photos.length === 0 ? (
+                                                <p className="text-warning font-medium mb-2">⚠️ At least 1 photo required to finish</p>
+                                            ) : formData.photos.length < 3 ? (
+                                                <p className="text-info mb-2">💡 Add more photos to stand out</p>
+                                            ) : (
+                                                <p className="text-success mb-2">✅ Great photo selection!</p>
+                                            )}
                                             <ul className="text-base-content/70 space-y-1">
-                                                <li>• Upload at least 1 photo (up to 6 total)</li>
                                                 <li>• First photo becomes your main profile picture</li>
                                                 <li>• Use clear, recent photos that show your face</li>
                                                 <li>• Maximum 5MB per photo</li>
@@ -892,12 +911,18 @@ export default function OnboardingPage() {
                                     <button
                                         onClick={handleSubmit}
                                         disabled={loading}
-                                        className="btn btn-primary"
+                                        className={`btn ${formData.photos.length === 0 ? 'btn-warning' : 'btn-primary'}`}
+                                        title={formData.photos.length === 0 ? 'At least 1 photo required' : ''}
                                     >
                                         {loading ? (
                                             <>
                                                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
                                                 Completing...
+                                            </>
+                                        ) : formData.photos.length === 0 ? (
+                                            <>
+                                                <AlertCircle className="w-4 h-4 mr-2" />
+                                                Add Photos First
                                             </>
                                         ) : (
                                             <>
@@ -925,12 +950,18 @@ export default function OnboardingPage() {
                                     <button
                                         onClick={handleSubmit}
                                         disabled={loading}
-                                        className="btn btn-primary"
+                                        className={`btn ${formData.photos.length === 0 ? 'btn-warning' : 'btn-primary'}`}
+                                        title={formData.photos.length === 0 ? 'At least 1 photo required' : ''}
                                     >
                                         {loading ? (
                                             <>
                                                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
                                                 Completing...
+                                            </>
+                                        ) : formData.photos.length === 0 ? (
+                                            <>
+                                                <AlertCircle className="w-4 h-4 mr-2" />
+                                                Add Photos First
                                             </>
                                         ) : (
                                             <>

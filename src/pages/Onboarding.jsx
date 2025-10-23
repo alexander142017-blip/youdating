@@ -308,7 +308,25 @@ export default function OnboardingPage() {
                 // Move to code verification step
                 setCurrentStep(7);
             } else {
-                setPhoneError(result.error || 'Failed to send verification code');
+                // Map API errors to friendly messages
+                let errorMessage;
+                switch (result.error) {
+                    case 'unauthorized':
+                        errorMessage = 'Please sign in again.';
+                        break;
+                    case 'try_later':
+                        errorMessage = 'Please wait a moment before requesting another code.';
+                        break;
+                    case 'phone_taken':
+                        errorMessage = 'This phone number is already verified by another user.';
+                        break;
+                    case 'invalid_phone':
+                        errorMessage = 'Please enter a valid phone number.';
+                        break;
+                    default:
+                        errorMessage = 'Could not send verification code. Please try again.';
+                }
+                setPhoneError(errorMessage);
             }
 
         } catch (error) {
@@ -358,7 +376,25 @@ export default function OnboardingPage() {
                 // Allow finishing onboarding
                 setCodeError("");
             } else {
-                setCodeError(result.error || 'Invalid verification code');
+                // Map API errors to friendly messages
+                let errorMessage;
+                switch (result.error) {
+                    case 'unauthorized':
+                        errorMessage = 'Please sign in again.';
+                        break;
+                    case 'invalid_or_expired':
+                        errorMessage = "That code didn't work. Request a new one.";
+                        break;
+                    case 'no_phone':
+                        errorMessage = 'Please start verification first.';
+                        break;
+                    case 'already_verified':
+                        errorMessage = 'Phone is already verified.';
+                        break;
+                    default:
+                        errorMessage = 'Could not verify your phone. Please try again.';
+                }
+                setCodeError(errorMessage);
             }
 
         } catch (error) {

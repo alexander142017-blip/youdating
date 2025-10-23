@@ -4,7 +4,7 @@
 Test the complete phone verification flow from new user registration through successful verification.
 
 ## Prerequisites
-- [ ] Vonage API credentials configured in environment variables
+- [ ] Twilio API credentials configured in environment variables
 - [ ] Supabase database has phone verification schema applied
 - [ ] libphonenumber-js dependency installed
 - [ ] Test phone number available (real number that can receive SMS)
@@ -34,7 +34,7 @@ Test the complete phone verification flow from new user registration through suc
 
 ### 4. SMS Code Verification
 - [ ] Check test phone receives SMS with 6-digit code
-- [ ] Verify SMS sender shows "Vonage" or configured brand
+- [ ] Verify SMS sender shows "Twilio" or configured brand
 - [ ] Enter received 6-digit code
 - [ ] Click "Verify Code"
 - [ ] Verify success message appears
@@ -45,7 +45,7 @@ Test the complete phone verification flow from new user registration through suc
 - [ ] Find user record by email
 - [ ] Verify `phone_e164` field contains formatted phone (e.g., "+1234567890")
 - [ ] Verify `phone_verified` field is `true`
-- [ ] Verify `verify_request_id` field contains Vonage request ID
+- [ ] Verify `verify_request_id` field contains Twilio identifier or null
 
 ### 6. Route Protection Test
 - [ ] Manually navigate to `/discover`
@@ -66,7 +66,7 @@ Test the complete phone verification flow from new user registration through suc
 
 ### Expired Verification Code
 - [ ] Complete phone entry (steps 1-3 above)
-- [ ] Wait 10+ minutes (Vonage default expiry)
+- [ ] Wait 10+ minutes (Twilio default expiry)
 - [ ] Enter the original code
 - [ ] Click "Verify Code"
 - [ ] Verify error message: "Verification code has expired"
@@ -122,9 +122,9 @@ Test the complete phone verification flow from new user registration through suc
 ## Common Issues & Debugging
 
 ### No SMS Received
-- Check Vonage API credentials
+- Check Twilio API credentials
 - Verify phone number format (E.164)
-- Check Vonage account balance
+- Check Twilio account balance
 - Verify test phone can receive SMS
 
 ### Database Errors
@@ -147,4 +147,4 @@ Test the complete phone verification flow from new user registration through suc
 
 **Test Environment**: Use staging/development environment only  
 **Test Duration**: ~15-20 minutes for complete flow  
-**Required Access**: Supabase dashboard, test phone number, Vonage dashboard (optional)
+**Required Access**: Supabase dashboard, test phone number, Twilio dashboard (optional)

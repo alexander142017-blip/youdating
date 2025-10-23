@@ -7,6 +7,7 @@ Current stack
 - React
 - Tailwind CSS
 - Supabase (auth, database, storage)
+- Twilio Verify (SMS phone verification)
 
 Quick start (local)
 1. Copy environment variables into a local `.env` or your dev environment:

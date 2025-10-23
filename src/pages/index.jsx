@@ -17,6 +17,8 @@ const StorePage = lazy(() => import('./Store'));
 const LikesYou = lazy(() => import('./LikesYou'));
 const AdminDashboard = lazy(() => import('./AdminDashboard'));
 const AnalyticsDashboard = lazy(() => import('./AnalyticsDashboard'));
+const ForgotPassword = lazy(() => import('./auth/ForgotPassword'));
+const UpdatePassword = lazy(() => import('./auth/UpdatePassword'));
 
 export default function AppRoutes() {
   return (
@@ -28,6 +30,16 @@ export default function AppRoutes() {
         {/* Auth pages - no protection needed */}
         <Route path="auth" element={<AuthStart />} />
         <Route path="auth/callback" element={<AuthCallback />} />
+        <Route path="auth/forgot" element={
+          <Suspense fallback={<div className="p-6 text-center text-sm opacity-70">Loading…</div>}>
+            <ForgotPassword />
+          </Suspense>
+        } />
+        <Route path="auth/update-password" element={
+          <Suspense fallback={<div className="p-6 text-center text-sm opacity-70">Loading…</div>}>
+            <UpdatePassword />
+          </Suspense>
+        } />
         
         {/* Lazy-loaded routes wrapped with Suspense */}
         <Route path="onboarding" element={

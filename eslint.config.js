@@ -6,8 +6,19 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default [
   { 
-    files: ["**/*.{js,mjs,cjs,jsx}"],
-    ignores: ["dist/**", "build/**", "node_modules/**"]
+    ignores: ["dist/**", "build/**", "node_modules/**", "**/*.min.js", "dist/**/*.js"]
+  },
+  { 
+    files: ["**/*.{js,mjs,cjs,jsx}"]
+  },
+  // Node.js scripts configuration
+  {
+    files: ["scripts/**/*.js", "scripts_migrate-*.js"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
   },
   { 
     languageOptions: { 

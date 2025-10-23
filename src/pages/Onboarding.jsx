@@ -266,11 +266,27 @@ export default function OnboardingPage() {
                 show_age: true
             };
 
+            // Verify user session before completing onboarding
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session || !session.user) {
+                setError("Session expired. Please log in again.");
+                navigate(createPageUrl("auth"));
+                return;
+            }
+
+            const userId = session.user.id;
+
             // Complete onboarding
             await completeOnboarding(onboardingData);
 
+            // Ensure onboarding_complete is set to true
+            await supabase
+                .from("profiles")
+                .update({ onboarding_complete: true })
+                .eq("user_id", userId);
+
             // Navigate to discover page
-            navigate(createPageUrl("discover"));
+            navigate("/discover");
             
         } catch (err) {
             console.error("Onboarding completion error:", err);

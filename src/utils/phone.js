@@ -5,7 +5,14 @@
  * Used for phone verification with Vonage API
  */
 
-import { parsePhoneNumber, isValidPhoneNumber } from 'libphonenumber-js';
+// Dynamic import to reduce bundle size - libphonenumber-js is large
+let phoneLibPromise = null;
+const getPhoneLib = () => {
+  if (!phoneLibPromise) {
+    phoneLibPromise = import('libphonenumber-js');
+  }
+  return phoneLibPromise;
+};
 
 /**
  * Converts a raw phone number to E.164 format
@@ -20,7 +27,7 @@ import { parsePhoneNumber, isValidPhoneNumber } from 'libphonenumber-js';
  * toE164("+44 20 7946 0958", "US") // "+442079460958" (international number)
  * toE164("invalid") // null
  */
-export function toE164(raw, defaultCountry = 'US') {
+export async function toE164(raw, defaultCountry = 'US') {
   try {
     // Return null for empty or null input
     if (!raw || typeof raw !== 'string') {
@@ -33,6 +40,9 @@ export function toE164(raw, defaultCountry = 'US') {
     if (!cleanInput) {
       return null;
     }
+
+    // Dynamically import libphonenumber-js
+    const { parsePhoneNumber } = await getPhoneLib();
 
     // Parse the phone number with the default country
     const phoneNumber = parsePhoneNumber(cleanInput, defaultCountry);
@@ -62,12 +72,13 @@ export function toE164(raw, defaultCountry = 'US') {
  * isValidPhone("(555) 123-4567", "US") // true
  * isValidPhone("555", "US") // false
  */
-export function isValidPhone(raw, defaultCountry = 'US') {
+export async function isValidPhone(raw, defaultCountry = 'US') {
   try {
     if (!raw || typeof raw !== 'string') {
       return false;
     }
 
+    const { isValidPhoneNumber } = await getPhoneLib();
     return isValidPhoneNumber(raw.trim(), defaultCountry);
   } catch (error) {
     return false;
@@ -86,12 +97,13 @@ export function isValidPhone(raw, defaultCountry = 'US') {
  * formatPhoneDisplay("+15551234567", "US", "NATIONAL") // "(555) 123-4567"
  * formatPhoneDisplay("+15551234567", "US", "INTERNATIONAL") // "+1 555 123 4567"
  */
-export function formatPhoneDisplay(raw, defaultCountry = 'US', format = 'NATIONAL') {
+export async function formatPhoneDisplay(raw, defaultCountry = 'US', format = 'NATIONAL') {
   try {
     if (!raw || typeof raw !== 'string') {
       return null;
     }
 
+    const { parsePhoneNumber } = await getPhoneLib();
     const phoneNumber = parsePhoneNumber(raw.trim(), defaultCountry);
     
     if (!phoneNumber || !phoneNumber.isValid()) {
@@ -113,12 +125,13 @@ export function formatPhoneDisplay(raw, defaultCountry = 'US', format = 'NATIONA
  * @param {string} defaultCountry - Default country code
  * @returns {string|null} - Country code (e.g., "US", "CA") or null if invalid
  */
-export function getPhoneCountry(raw, defaultCountry = 'US') {
+export async function getPhoneCountry(raw, defaultCountry = 'US') {
   try {
     if (!raw || typeof raw !== 'string') {
       return null;
     }
 
+    const { parsePhoneNumber } = await getPhoneLib();
     const phoneNumber = parsePhoneNumber(raw.trim(), defaultCountry);
     
     if (!phoneNumber || !phoneNumber.isValid()) {
@@ -139,15 +152,15 @@ export function getPhoneCountry(raw, defaultCountry = 'US') {
  * @param {string} defaultCountry - Default country code
  * @returns {{ valid: boolean, e164: string|null, formatted: string|null, country: string|null }}
  */
-export function validatePhoneForAPI(raw, defaultCountry = 'US') {
-  const e164 = toE164(raw, defaultCountry);
+export async function validatePhoneForAPI(raw, defaultCountry = 'US') {
+  const e164 = await toE164(raw, defaultCountry);
   const valid = e164 !== null;
   
   return {
     valid,
     e164,
-    formatted: valid ? formatPhoneDisplay(e164, defaultCountry, 'NATIONAL') : null,
-    country: valid ? getPhoneCountry(e164, defaultCountry) : null
+    formatted: valid ? await formatPhoneDisplay(e164, defaultCountry, 'NATIONAL') : null,
+    country: valid ? await getPhoneCountry(e164, defaultCountry) : null
   };
 }
 

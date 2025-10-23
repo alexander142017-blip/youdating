@@ -52,9 +52,15 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: 'phone_required' });
     }
 
-    // Validate E.164 format (basic check)
-    if (!phone.match(/^\+[1-9]\d{6,14}$/) || phone.length > 20) {
-      return res.status(400).json({ ok: false, error: 'invalid_phone' });
+    // Validate E.164 format (enhanced validation)
+    const phoneRegex = /^\+[1-9]\d{6,14}$/;
+    if (!phoneRegex.test(phone) || phone.length < 8 || phone.length > 16) {
+      return res.status(400).json({ ok: false, error: 'invalid_phone_format' });
+    }
+    
+    // Additional security checks
+    if (phone.includes('..') || phone.includes('--') || phone.replace(/[+\d]/g, '').length > 0) {
+      return res.status(400).json({ ok: false, error: 'invalid_phone_characters' });
     }
 
     // Extract access token from Authorization header
@@ -89,10 +95,10 @@ export default async function handler(req, res) {
       return res.status(409).json({ ok: false, error: 'phone_taken' });
     }
 
-    // Optional 60s throttle check
+    // Enhanced rate limiting (60s between attempts)
     const { data: profile } = await admin
       .from('profiles')
-      .select('updated_at')
+      .select('updated_at, verify_request_id')
       .eq('id', user.id)
       .single();
 
@@ -102,8 +108,24 @@ export default async function handler(req, res) {
       const diffSeconds = (now - lastUpdate) / 1000;
       
       if (diffSeconds < 60) {
-        return res.status(429).json({ ok: false, error: 'try_later' });
+        return res.status(429).json({ 
+          ok: false, 
+          error: 'rate_limited',
+          retry_after: Math.ceil(60 - diffSeconds)
+        });
       }
+    }
+    
+    // Check for suspicious activity (more than 5 attempts in 1 hour)
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const { data: recentAttempts, error: attemptError } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .gte('updated_at', oneHourAgo.toISOString());
+      
+    if (!attemptError && recentAttempts && recentAttempts.length > 5) {
+      return res.status(429).json({ ok: false, error: 'too_many_attempts' });
     }
 
     // Start Twilio verification

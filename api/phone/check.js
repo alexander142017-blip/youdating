@@ -52,9 +52,15 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: 'code_required' });
     }
 
-    // Validate code format (should be 4-8 digits)
-    if (!code.match(/^\d{4,8}$/)) {
+    // Validate code format (enhanced validation)
+    const codeRegex = /^\d{4,8}$/;
+    if (!codeRegex.test(code)) {
       return res.status(400).json({ ok: false, error: 'invalid_code_format' });
+    }
+    
+    // Additional security checks
+    if (code.length < 4 || code.length > 8 || code === '0000' || code === '1234') {
+      return res.status(400).json({ ok: false, error: 'invalid_code_value' });
     }
 
     // Extract access token from Authorization header

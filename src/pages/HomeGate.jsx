@@ -3,6 +3,9 @@ import { Navigate } from "react-router-dom";
 import { supabase } from "../api/supabase";
 
 export default function HomeGate() {
+  // Phone verification is optional by default. Enable with VITE_REQUIRE_PHONE_VERIFICATION=1
+  const phoneVerificationRequired = import.meta.env.VITE_REQUIRE_PHONE_VERIFICATION === '1';
+  
   const [redirect, setRedirect] = useState(null);
 
   useEffect(() => {
@@ -30,11 +33,11 @@ export default function HomeGate() {
       if (!profile || !profile.onboarding_complete) {
         // Onboarding not complete → redirect to /onboarding
         setRedirect("/onboarding");
-      } else if (!profile.phone_verified) {
-        // Onboarded but phone not verified → redirect to /onboarding
+      } else if (phoneVerificationRequired && !profile.phone_verified) {
+        // Onboarded but phone not verified → redirect to /onboarding (only if phone verification required)
         setRedirect("/onboarding");
       } else {
-        // Onboarding complete and phone verified → redirect to /discover
+        // Onboarding complete (and phone verified if required) → redirect to /discover
         setRedirect("/discover");
       }
     } catch (error) {

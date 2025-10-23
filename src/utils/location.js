@@ -1,40 +1,68 @@
-import { supabase } from "../api/supabase";
+import { supabase } from '../api/supabase';
+import { validateUserSession, executeWithErrorHandling } from './rlsErrorHandler';
 
 export async function getCoords(timeoutMs = 15000) {
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error("Geolocation not supported"));
-    
-    const onOk = (pos) => {
-      const { latitude: lat, longitude: lng } = pos.coords || {};
-      resolve({ lat, lng });
-    };
-    
-    const onErr = (err) => reject(new Error(err?.message || "Location error"));
-    
-    navigator.geolocation.getCurrentPosition(onOk, onErr, { 
-      enableHighAccuracy: true, 
-      timeout: timeoutMs, 
-      maximumAge: 0 
-    });
+    if (!navigator.geolocation) {
+      return reject(new Error('Location services are not supported by this browser'));
+    }
+
+    // Check if permissions are blocked
+    if (navigator.permissions) {
+      navigator.permissions.query({ name: 'geolocation' }).then((permission) => {
+        if (permission.state === 'denied') {
+          return reject(new Error('Location access denied. Please enable location permissions in your browser settings.'));
+        }
+      }).catch(() => {
+        // Permissions API not supported, continue with geolocation attempt
+      });
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => resolve({ lat: coords.latitude, lng: coords.longitude }),
+      (err) => {
+        let message = 'Unable to get your location';
+        switch (err.code) {
+          case err.PERMISSION_DENIED:
+            message = 'Location access denied. Please enable location permissions and try again.';
+            break;
+          case err.POSITION_UNAVAILABLE:
+            message = 'Location information unavailable. Please check your connection and try again.';
+            break;
+          case err.TIMEOUT:
+            message = 'Location request timed out. Please try again.';
+            break;
+          default:
+            message = err?.message || 'Location error occurred';
+        }
+        reject(new Error(message));
+      },
+      { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 300000 } // Cache for 5 minutes
+    );
   });
 }
 
 export async function saveCoordsToProfile() {
-  const { data: { session } } = await supabase.auth.getSession();
-  const userId = session?.user?.id;
-  if (!userId) throw new Error("Not signed in");
-  
-  const { lat, lng } = await getCoords();
-  
-  const { error } = await supabase
-    .from("profiles")
-    .update({ 
-      lat, 
-      lng, 
-      location_updated_at: new Date().toISOString() 
-    })
-    .eq("user_id", userId);
+  return executeWithErrorHandling(async () => {
+    const userId = await validateUserSession(supabase);
+    const { lat, lng } = await getCoords();
     
-  if (error) throw error;
-  return { lat, lng };
+    // Validate coordinates
+    if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+      throw new Error('Invalid location coordinates received');
+    }
+    
+    const { error } = await supabase
+      .from('profiles')
+      .update({ 
+        lat: parseFloat(lat), 
+        lng: parseFloat(lng), 
+        location_updated_at: new Date().toISOString() 
+      })
+      .eq('user_id', userId);
+    
+    if (error) throw error;
+    
+    return { lat: parseFloat(lat), lng: parseFloat(lng) };
+  }, 'location save');
 }

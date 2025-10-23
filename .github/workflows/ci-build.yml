@@ -26,8 +26,8 @@ jobs:
 
       - name: Build
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://crkobgwfntptojxywjyg.supabase.co' }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNya29iZ3dmbnRwdG9qeHl3anlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA5NTQxNjUsImV4cCI6MjA3NjUzMDE2NX0.ZulC8ZCvR0PAYv77bNmEgs2y905NrbTOCw_9LxsTOK4' }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
 
       - name: Upload build log

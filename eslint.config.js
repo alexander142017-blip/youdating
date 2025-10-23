@@ -5,34 +5,39 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default [
-  { ignores: ['dist'] },
-  {
-    files: ['**/*.{js,jsx}'],
-    languageOptions: {
-      ecmaVersion: 2020,
-      globals: globals.browser,
-      parserOptions: {
-        ecmaVersion: 'latest',
-        ecmaFeatures: { jsx: true },
-        sourceType: 'module',
+  { 
+    files: ["**/*.{js,mjs,cjs,jsx}"],
+    ignores: ["dist/**", "build/**", "node_modules/**"]
+  },
+  { 
+    languageOptions: { 
+      globals: {
+        ...globals.browser,
+        ...globals.es2021
       },
-    },
-    settings: { react: { version: '18.3' } },
-    plugins: {
-      react,
-      'react-hooks': reactHooks,
-      'react-refresh': reactRefresh,
-    },
+      parserOptions: {
+        ecmaVersion: 2021,
+        sourceType: 'module'
+      }
+    }
+  },
+  {
+    files: ["api/**/*.js", "scripts/**/*.js", "*.config.js"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.es2021
+      }
+    }
+  },
+  pluginJs.configs.recommended,
+  ...pluginReact.configs.flat.recommended,
+  {
     rules: {
-      ...js.configs.recommended.rules,
-      ...react.configs.recommended.rules,
-      ...react.configs['jsx-runtime'].rules,
-      ...reactHooks.configs.recommended.rules,
-      'react/jsx-no-target-blank': 'off',
-      'react-refresh/only-export-components': [
-        'warn',
-        { allowConstantExport: true },
-      ],
+      "react/react-in-jsx-scope": "off",
+      "react/prop-types": "warn",
+      "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+      "react/no-unescaped-entities": "warn"
     },
   },
-]
+];

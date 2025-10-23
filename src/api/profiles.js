@@ -1,32 +1,33 @@
 import { supabase } from './supabase';
 import { getCurrentSessionUser } from './session';
+import { handleSupabaseError, validateUserSession, executeWithErrorHandling } from '../utils/rlsErrorHandler';
 
 /**
  * Get profile by userId or email.
  */
 export async function getProfile({ userId, email }) {
-  if (userId) {
-    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-    if (error) throw error;
-    return data;
-  }
-  if (email) {
-    const { data, error } = await supabase.from('profiles').select('*').eq('email', email).maybeSingle();
-    if (error) throw error;
-    return data;
-  }
-  return null;
+  return executeWithErrorHandling(async () => {
+    if (userId) {
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+      if (error) throw error;
+      return data;
+    }
+    if (email) {
+      const { data, error } = await supabase.from('profiles').select('*').eq('email', email).maybeSingle();
+      if (error) throw error;
+      return data;
+    }
+    return null;
+  }, 'profile retrieval');
 }
 
 /**
  * Upsert profile (insert or update) - RLS compliant.
  */
 export async function upsertProfile(profile) {
-  try {
+  return executeWithErrorHandling(async () => {
     // Get current session for RLS compliance
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
-    if (!userId) throw new Error("Not signed in");
+    const userId = await validateUserSession(supabase);
 
     // Ensure user_id is set for RLS and updated_at is current
     const profileData = {
@@ -41,17 +42,9 @@ export async function upsertProfile(profile) {
       .select()
       .maybeSingle();
     
-    if (error) {
-      if (error.message?.includes("row-level security")) {
-        throw new Error("Couldn't save profile due to security rules. Please sign in again and retry.");
-      }
-      throw error;
-    }
+    if (error) throw error;
     return data;
-  } catch (error) {
-    console.error('Failed to upsert profile:', error);
-    throw error;
-  }
+  }, 'profile update');
 }
 
 /**

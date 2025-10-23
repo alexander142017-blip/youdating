@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from "react";
-import { User, Edit, Settings, Camera, MapPin, Cake, CheckCircle, Loader2 } from "lucide-react";
+import { User, Edit, Settings, Camera, MapPin, Cake, CheckCircle, Loader2, Target, Navigation, AlertCircle } from "lucide-react";
 import { getCurrentUser } from "../api/auth";
 import { getProfile, upsertProfile } from "../api/profiles";
+import { saveCoordsToProfile } from "../utils/location";
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [error, setError] = useState('');
+  const [locationError, setLocationError] = useState('');
+  const [coordinates, setCoordinates] = useState(null);
   
   // Form fields
   const [formData, setFormData] = useState({
@@ -125,6 +129,27 @@ export default function ProfilePage() {
       setError('Failed to save profile: ' + err.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleLocationCapture = async () => {
+    setLocationLoading(true);
+    setLocationError("");
+    setError("");
+    
+    try {
+      const coords = await saveCoordsToProfile();
+      setCoordinates(coords);
+      // Reload profile to get updated location
+      await loadUserProfile();
+      setSuccessMessage('Location updated successfully!');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (error) {
+      const msg = error?.message || "Could not get your location";
+      setLocationError(msg);
+      console.error("Location capture error:", error);
+    } finally {
+      setLocationLoading(false);
     }
   };
 
@@ -256,6 +281,42 @@ export default function ProfilePage() {
                     className="input input-bordered input-primary w-full"
                     placeholder="Enter your city"
                   />
+                </div>
+
+                {/* GPS Location Capture */}
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={handleLocationCapture}
+                    disabled={locationLoading}
+                    className="btn btn-outline btn-primary w-full"
+                  >
+                    {locationLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        Getting location...
+                      </>
+                    ) : (
+                      <>
+                        <Target className="w-4 h-4 mr-2" />
+                        Use my location
+                      </>
+                    )}
+                  </button>
+
+                  {locationError && (
+                    <div className="alert alert-error">
+                      <AlertCircle className="w-4 h-4" />
+                      <span>{locationError}</span>
+                    </div>
+                  )}
+
+                  {profile?.lat && profile?.lng && (
+                    <div className="alert alert-info">
+                      <MapPin className="w-4 h-4" />
+                      <span>Location: {profile.lat.toFixed(4)}, {profile.lng.toFixed(4)}</span>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="form-control">

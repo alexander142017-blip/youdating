@@ -1,5 +1,5 @@
 /**
- * Vonage SMS Verification Check - Vercel API Route
+ * Twilio SMS Verification Check - Vercel API Route
  * 
  * Verifies SMS code entered by authenticated user
  * POST /api/phone/check
@@ -7,34 +7,25 @@
  * Required Environment Variables:
  * - SUPABASE_URL: Your Supabase project URL
  * - SUPABASE_SERVICE_ROLE: Service role key (server-side only)
- * - VONAGE_API_KEY: Vonage API key
- * - VONAGE_API_SECRET: Vonage API secret
+ * - TWILIO_ACCOUNT_SID: Twilio Account SID
+ * - TWILIO_AUTH_TOKEN: Twilio Auth Token
+ * - TWILIO_VERIFY_SID: Twilio Verify Service SID
  * 
  * @param {import('vercel').VercelRequest} req
  * @param {import('vercel').VercelResponse} res
  */
 
+import twilio from 'twilio';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase admin client (server-side only)
-const supabaseAdmin = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
+// Initialize clients
+const admin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE);
+const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
 export default async function handler(req, res) {
   // Only allow POST requests
   if (req.method !== 'POST') {
-    return res.status(405).json({ 
-      ok: false, 
-      error: 'Method not allowed' 
-    });
+    return res.status(405).json({ ok: false, error: 'method_not_allowed' });
   }
 
   try {
@@ -42,17 +33,15 @@ export default async function handler(req, res) {
     const requiredEnvVars = [
       'SUPABASE_URL', 
       'SUPABASE_SERVICE_ROLE', 
-      'VONAGE_API_KEY', 
-      'VONAGE_API_SECRET'
+      'TWILIO_ACCOUNT_SID', 
+      'TWILIO_AUTH_TOKEN',
+      'TWILIO_VERIFY_SID'
     ];
     
     for (const envVar of requiredEnvVars) {
       if (!process.env[envVar]) {
         console.error(`Missing required environment variable: ${envVar}`);
-        return res.status(500).json({ 
-          ok: false, 
-          error: 'Server configuration error' 
-        });
+        return res.status(500).json({ ok: false, error: 'server_config_error' });
       }
     }
 
@@ -60,120 +49,61 @@ export default async function handler(req, res) {
     const { code } = req.body;
     
     if (!code) {
-      return res.status(400).json({ 
-        ok: false, 
-        error: 'Verification code is required' 
-      });
+      return res.status(400).json({ ok: false, error: 'code_required' });
     }
 
     // Validate code format (should be 4-8 digits)
     if (!code.match(/^\d{4,8}$/)) {
-      return res.status(400).json({ 
-        ok: false, 
-        error: 'Verification code must be 4-8 digits' 
-      });
+      return res.status(400).json({ ok: false, error: 'invalid_code_format' });
     }
 
     // Extract access token from Authorization header
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ 
-        ok: false, 
-        error: 'Missing or invalid Authorization header' 
-      });
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({ ok: false, error: 'unauthorized' });
     }
 
-    const accessToken = authHeader.substring(7); // Remove 'Bearer ' prefix
-
     // Verify user with Supabase admin client
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
+    const { data: { user }, error: authError } = await admin.auth.getUser(token);
     
     if (authError || !user) {
       console.error('Auth verification failed:', authError);
-      return res.status(401).json({ 
-        ok: false, 
-        error: 'Invalid or expired access token' 
-      });
+      return res.status(401).json({ ok: false, error: 'unauthorized' });
     }
 
-    // Get user's verification request ID from profile
-    const { data: profile, error: profileError } = await supabaseAdmin
+    // Get user's phone number from profile
+    const { data: profile, error: profileError } = await admin
       .from('profiles')
-      .select('verify_request_id, phone_e164, phone_verified')
+      .select('phone_e164, phone_verified')
       .eq('id', user.id)
       .single();
 
     if (profileError) {
       console.error('Profile fetch error:', profileError);
-      return res.status(500).json({ 
-        ok: false, 
-        error: 'Failed to fetch user profile' 
-      });
+      return res.status(500).json({ ok: false, error: 'database_error' });
     }
 
-    if (!profile || !profile.verify_request_id) {
-      return res.status(400).json({ 
-        ok: false, 
-        error: 'No active verification request found. Please start verification first.' 
-      });
+    if (!profile || !profile.phone_e164) {
+      return res.status(400).json({ ok: false, error: 'no_phone' });
     }
 
     if (profile.phone_verified) {
-      return res.status(400).json({ 
-        ok: false, 
-        error: 'Phone number is already verified' 
-      });
+      return res.status(400).json({ ok: false, error: 'already_verified' });
     }
 
-    // Verify code with Vonage
-    const vonageAuth = Buffer.from(
-      `${process.env.VONAGE_API_KEY}:${process.env.VONAGE_API_SECRET}`
-    ).toString('base64');
+    // Verify code with Twilio
+    const resp = await client.verify.v2
+      .services(process.env.TWILIO_VERIFY_SID)
+      .verificationChecks
+      .create({ to: profile.phone_e164, code });
 
-    const vonageResponse = await fetch('https://api.nexmo.com/v2/verify/check', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${vonageAuth}`
-      },
-      body: JSON.stringify({
-        request_id: profile.verify_request_id,
-        code: code
-      })
-    });
-
-    const vonageData = await vonageResponse.json();
-
-    if (!vonageResponse.ok) {
-      console.error('Vonage verification failed:', vonageData);
-      
-      // Handle specific Vonage error codes
-      let errorMessage = 'Invalid verification code';
-      
-      if (vonageData.type) {
-        switch (vonageData.type) {
-          case 'https://developer.vonage.com/api-errors/verify#invalid-code':
-            errorMessage = 'Invalid verification code. Please try again.';
-            break;
-          case 'https://developer.vonage.com/api-errors/verify#expired':
-            errorMessage = 'Verification code has expired. Please request a new one.';
-            break;
-          case 'https://developer.vonage.com/api-errors/verify#rate-limit':
-            errorMessage = 'Too many attempts. Please wait before trying again.';
-            break;
-          default:
-            errorMessage = vonageData.detail || vonageData.title || 'Verification failed';
-        }
-      }
-      
-      return res.status(400).json({ 
-        ok: false, 
-        error: errorMessage 
-      });
+    if (resp.status !== 'approved') {
+      console.error('Twilio verification failed:', resp);
+      return res.status(400).json({ ok: false, error: 'invalid_or_expired' });
     }
 
     // Verification successful - update user profile
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await admin
       .from('profiles')
       .update({
         phone_verified: true,
@@ -183,24 +113,14 @@ export default async function handler(req, res) {
 
     if (updateError) {
       console.error('Profile update error:', updateError);
-      return res.status(500).json({ 
-        ok: false, 
-        error: 'Failed to update verification status' 
-      });
+      return res.status(500).json({ ok: false, error: 'database_error' });
     }
 
     // Success response
-    return res.status(200).json({ 
-      ok: true,
-      message: 'Phone number verified successfully',
-      phone_verified: true
-    });
+    return res.status(200).json({ ok: true });
 
   } catch (error) {
     console.error('Verification check error:', error);
-    return res.status(500).json({ 
-      ok: false, 
-      error: 'Internal server error' 
-    });
+    return res.status(500).json({ ok: false, error: 'server_error' });
   }
 }

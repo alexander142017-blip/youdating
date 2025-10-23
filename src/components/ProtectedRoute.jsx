@@ -3,6 +3,9 @@ import { Navigate } from "react-router-dom";
 import { supabase } from "../api/supabase";
 
 export default function ProtectedRoute({ children, requireOnboarding = false, needsVerifiedPhone = false }) {
+  // Phone verification is optional by default. Enable with VITE_REQUIRE_PHONE_VERIFICATION=1
+  const phoneVerificationRequired = import.meta.env.VITE_REQUIRE_PHONE_VERIFICATION === '1';
+  
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [checked, setChecked] = useState(false);
@@ -56,7 +59,8 @@ export default function ProtectedRoute({ children, requireOnboarding = false, ne
   }
 
   // Route needs verified phone and user hasn't verified their phone → redirect to /onboarding
-  if (needsVerifiedPhone && profile && !profile.phone_verified) {
+  // Only enforce when phone verification is required system-wide
+  if (needsVerifiedPhone && phoneVerificationRequired && profile && !profile.phone_verified) {
     return <Navigate to="/onboarding" replace />;
   }
 

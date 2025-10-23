@@ -27,9 +27,9 @@ import {
   Navigation
 } from 'lucide-react';
 
-const TOTAL_STEPS = 7;
-
-
+// Phone verification is optional by default. Enable with VITE_REQUIRE_PHONE_VERIFICATION=1
+const PHONE_VERIFICATION_REQUIRED = import.meta.env.VITE_REQUIRE_PHONE_VERIFICATION === '1';
+const TOTAL_STEPS = PHONE_VERIFICATION_REQUIRED ? 7 : 5;
 
 export default function OnboardingPage() {
     const navigate = useNavigate();
@@ -255,12 +255,28 @@ export default function OnboardingPage() {
 
     const nextStep = () => {
         if (validateStep(currentStep)) {
-            setCurrentStep(prev => Math.min(prev + 1, TOTAL_STEPS));
+            let nextStepNumber = currentStep + 1;
+            
+            // Skip phone verification steps (6-7) if phone verification is disabled
+            if (!PHONE_VERIFICATION_REQUIRED && nextStepNumber === 6) {
+                // Skip to the final step (which would be step 8 in original numbering, but is now the max)
+                nextStepNumber = TOTAL_STEPS;
+            }
+            
+            setCurrentStep(Math.min(nextStepNumber, TOTAL_STEPS));
         }
     };
 
     const prevStep = () => {
-        setCurrentStep(prev => Math.max(prev - 1, 1));
+        let prevStepNumber = currentStep - 1;
+        
+        // Skip back over phone verification steps if they're disabled
+        if (!PHONE_VERIFICATION_REQUIRED && currentStep === TOTAL_STEPS && TOTAL_STEPS === 5) {
+            // If we're at step 5 (last step when phone disabled), go back to step 5
+            prevStepNumber = 5;
+        }
+        
+        setCurrentStep(Math.max(prevStepNumber, 1));
         setError("");
         setPhoneError("");
         setCodeError("");
@@ -408,8 +424,9 @@ export default function OnboardingPage() {
     const getCompletionButtonState = () => {
         const hasPhotos = formData.photos.length > 0;
         const hasVerifiedPhone = formData.phone_verified;
+        const phoneRequired = PHONE_VERIFICATION_REQUIRED;
         
-        if (!hasPhotos && !hasVerifiedPhone) {
+        if (!hasPhotos && phoneRequired && !hasVerifiedPhone) {
             return {
                 className: 'btn-warning',
                 title: 'Photos and phone verification required',
@@ -423,7 +440,7 @@ export default function OnboardingPage() {
                 icon: AlertCircle,
                 text: 'Add Photos First'
             };
-        } else if (!hasVerifiedPhone) {
+        } else if (phoneRequired && !hasVerifiedPhone) {
             return {
                 className: 'btn-warning',
                 title: 'Phone verification required', 
@@ -469,8 +486,10 @@ export default function OnboardingPage() {
             const photos = Array.isArray(formData.photos) ? formData.photos : [];
             if (photos.length < 1) throw new Error("Please add at least one photo.");
             
-            // Must have verified phone
-            if (!formData.phone_verified) throw new Error("Please verify your phone number first.");
+            // Must have verified phone (only if phone verification is required)
+            if (PHONE_VERIFICATION_REQUIRED && !formData.phone_verified) {
+                throw new Error("Please verify your phone number first.");
+            }
             
             // Calculate age from date of birth
             const birthDate = new Date(formData.date_of_birth);
@@ -579,6 +598,15 @@ export default function OnboardingPage() {
                         value={currentStep} 
                         max={TOTAL_STEPS}
                     ></progress>
+                    
+                    {/* Development Note */}
+                    {!PHONE_VERIFICATION_REQUIRED && import.meta.env.DEV && (
+                        <div className="text-center mt-2">
+                            <p className="text-xs text-base-content/50 italic">
+                                For testing: phone verification is disabled. We'll enable it later.
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Main Card */}
@@ -876,7 +904,7 @@ export default function OnboardingPage() {
                         )}
 
                         {/* Step 6: Phone Number Input */}
-                        {currentStep === 6 && (
+                        {PHONE_VERIFICATION_REQUIRED && currentStep === 6 && (
                             <div className="space-y-6">
                                 <div className="text-center mb-6">
                                     <Phone className="w-12 h-12 text-primary mx-auto mb-2" />
@@ -929,7 +957,7 @@ export default function OnboardingPage() {
                         )}
 
                         {/* Step 7: Phone Code Verification */}
-                        {currentStep === 7 && (
+                        {PHONE_VERIFICATION_REQUIRED && currentStep === 7 && (
                             <div className="space-y-6">
                                 <div className="text-center mb-6">
                                     <Shield className="w-12 h-12 text-primary mx-auto mb-2" />

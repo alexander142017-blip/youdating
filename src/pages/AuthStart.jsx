@@ -43,8 +43,8 @@ export default function AuthStart() {
   const [smsCode, setSmsCode] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
   
-  // Hide phone tab in preview environments
-  const showPhoneTab = import.meta.env.VITE_DISABLE_PHONE_AUTH !== '1';
+  // Phone login disabled by default; toggle with VITE_PHONE_LOGIN_ENABLED=1
+  const PHONE_LOGIN_ENABLED = import.meta.env.VITE_PHONE_LOGIN_ENABLED === '1';
   
   // Persist tab selection
   useEffect(() => {
@@ -405,12 +405,12 @@ export default function AuthStart() {
           >
             Email & Password
           </button>
-          {showPhoneTab && (
+          {PHONE_LOGIN_ENABLED && (
             <button 
               className={`tab ${activeTab === 'phone' ? 'tab-active' : ''}`}
               onClick={() => switchTab('phone')}
             >
-              Phone
+              Phone (SMS)
             </button>
           )}
         </div>
@@ -564,7 +564,7 @@ export default function AuthStart() {
         )}
         
         {/* TAB 3: PHONE */}
-        {activeTab === 'phone' && (
+        {PHONE_LOGIN_ENABLED && activeTab === 'phone' && (
           <div>
             {phoneStep === 'phone' ? (
               <form onSubmit={handlePhoneSubmit} className="space-y-4">

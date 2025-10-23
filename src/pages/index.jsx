@@ -28,21 +28,21 @@ export default function AppRoutes() {
           </ProtectedRoute>
         } />
         
-        {/* Main app routes - require login AND completed onboarding */}
+        {/* Main app routes - require login, completed onboarding, AND verified phone */}
         <Route path="discover" element={
-          <ProtectedRoute requireOnboarding={true}>
+          <ProtectedRoute requireOnboarding={true} needsVerifiedPhone={true}>
             <DiscoverPage />
           </ProtectedRoute>
         } />
         
         <Route path="matches" element={
-          <ProtectedRoute requireOnboarding={true}>
+          <ProtectedRoute requireOnboarding={true} needsVerifiedPhone={true}>
             <MatchesPage />
           </ProtectedRoute>
         } />
         
         <Route path="messages" element={
-          <ProtectedRoute requireOnboarding={true}>
+          <ProtectedRoute requireOnboarding={true} needsVerifiedPhone={true}>
             <MessagesPage />
           </ProtectedRoute>
         } />
@@ -54,7 +54,7 @@ export default function AppRoutes() {
         } />
         
         <Route path="store" element={
-          <ProtectedRoute requireOnboarding={true}>
+          <ProtectedRoute requireOnboarding={true} needsVerifiedPhone={true}>
             <StorePage />
           </ProtectedRoute>
         } />

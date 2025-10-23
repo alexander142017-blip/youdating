@@ -23,15 +23,18 @@ export default function HomeGate() {
       // User is logged in, check their profile
       const { data: profile } = await supabase
         .from('profiles')
-        .select('onboarding_complete')
+        .select('onboarding_complete, phone_verified')
         .eq('id', session.user.id)
         .single();
 
       if (!profile || !profile.onboarding_complete) {
         // Onboarding not complete → redirect to /onboarding
         setRedirect("/onboarding");
+      } else if (!profile.phone_verified) {
+        // Onboarded but phone not verified → redirect to /onboarding
+        setRedirect("/onboarding");
       } else {
-        // Onboarding complete → redirect to /discover
+        // Onboarding complete and phone verified → redirect to /discover
         setRedirect("/discover");
       }
     } catch (error) {

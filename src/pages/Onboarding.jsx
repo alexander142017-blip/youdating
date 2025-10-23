@@ -4,6 +4,7 @@ import { completeOnboarding } from '@/api/profiles';
 import { supabase } from '@/api/supabase';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { toE164 } from '@/utils/phone';
 import { 
   Loader2, 
   ArrowLeft, 
@@ -17,10 +18,12 @@ import {
   AlertCircle,
   Camera,
   Upload,
-  X
+  X,
+  Phone,
+  Shield
 } from 'lucide-react';
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 7;
 
 
 
@@ -38,8 +41,17 @@ export default function OnboardingPage() {
         looking_for: "",
         city: "",
         bio: "",
-        photos: []
+        photos: [],
+        phone: "",
+        phone_verified: false,
+        verification_code: ""
     });
+    
+    const [phoneLoading, setPhoneLoading] = useState(false);
+    const [codeLoading, setCodeLoading] = useState(false);
+    const [phoneError, setPhoneError] = useState("");
+    const [codeError, setCodeError] = useState("");
+    const [phoneSent, setPhoneSent] = useState(false);
 
     useEffect(() => {
         checkAuthStatus();
@@ -209,6 +221,23 @@ export default function OnboardingPage() {
                     return false;
                 }
                 break;
+            case 6:
+                if (!formData.phone.trim()) {
+                    setPhoneError("Please enter your phone number");
+                    return false;
+                }
+                const phoneE164 = toE164(formData.phone, 'US');
+                if (!phoneE164) {
+                    setPhoneError("Please enter a valid phone number");
+                    return false;
+                }
+                break;
+            case 7:
+                if (!formData.phone_verified) {
+                    setCodeError("Please verify your phone number first");
+                    return false;
+                }
+                break;
             default:
                 return true;
         }
@@ -226,6 +255,111 @@ export default function OnboardingPage() {
     const prevStep = () => {
         setCurrentStep(prev => Math.max(prev - 1, 1));
         setError("");
+        setPhoneError("");
+        setCodeError("");
+    };
+
+    const startPhoneVerification = async () => {
+        try {
+            setPhoneLoading(true);
+            setPhoneError("");
+
+            // Validate and format phone number
+            const phoneE164 = toE164(formData.phone, 'US');
+            if (!phoneE164) {
+                setPhoneError("Please enter a valid phone number");
+                return;
+            }
+
+            // Get current session
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                setPhoneError("Please log in again");
+                return;
+            }
+
+            // Call verification API
+            const response = await fetch('/api/phone/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({ 
+                    phone: phoneE164 
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.ok) {
+                setPhoneSent(true);
+                setFormData(prev => ({
+                    ...prev,
+                    phone: phoneE164 // Store the formatted E.164 number
+                }));
+                // Move to code verification step
+                setCurrentStep(7);
+            } else {
+                setPhoneError(result.error || 'Failed to send verification code');
+            }
+
+        } catch (error) {
+            console.error('Phone verification error:', error);
+            setPhoneError('Failed to send verification code. Please try again.');
+        } finally {
+            setPhoneLoading(false);
+        }
+    };
+
+    const verifyPhoneCode = async () => {
+        try {
+            setCodeLoading(true);
+            setCodeError("");
+
+            if (!formData.verification_code || formData.verification_code.length !== 6) {
+                setCodeError("Please enter the 6-digit verification code");
+                return;
+            }
+
+            // Get current session
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                setCodeError("Please log in again");
+                return;
+            }
+
+            // Call verification check API
+            const response = await fetch('/api/phone/check', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({ 
+                    code: formData.verification_code 
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.ok) {
+                setFormData(prev => ({
+                    ...prev,
+                    phone_verified: true
+                }));
+                // Allow finishing onboarding
+                setCodeError("");
+            } else {
+                setCodeError(result.error || 'Invalid verification code');
+            }
+
+        } catch (error) {
+            console.error('Code verification error:', error);
+            setCodeError('Failed to verify code. Please try again.');
+        } finally {
+            setCodeLoading(false);
+        }
     };
 
     const handleSubmit = async () => {
@@ -259,6 +393,8 @@ export default function OnboardingPage() {
                 photos: formData.photos, // JSONB array of photo URLs
                 profile_photo_url: formData.photos[0] || null, // First photo as main
                 has_photos: formData.photos.length > 0,
+                phone_e164: formData.phone,
+                phone_verified: formData.phone_verified,
                 onboarding_complete: true,
                 profile_completed: true,
                 show_on_discover: true, // Default to visible in discovery
@@ -585,6 +721,144 @@ export default function OnboardingPage() {
                             </div>
                         )}
 
+                        {/* Step 6: Phone Number Input */}
+                        {currentStep === 6 && (
+                            <div className="space-y-6">
+                                <div className="text-center mb-6">
+                                    <Phone className="w-12 h-12 text-primary mx-auto mb-2" />
+                                    <h2 className="card-title justify-center">Phone Verification</h2>
+                                    <p className="text-sm text-base-content/70">
+                                        We'll send you a verification code for security
+                                    </p>
+                                </div>
+
+                                <div className="form-control">
+                                    <label className="label">
+                                        <span className="label-text">Phone Number</span>
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        value={formData.phone}
+                                        onChange={(e) => {
+                                            handleInputChange('phone', e.target.value);
+                                            setPhoneError("");
+                                        }}
+                                        className={`input input-bordered input-primary w-full ${phoneError ? 'input-error' : ''}`}
+                                        placeholder="(555) 123-4567"
+                                        disabled={phoneLoading}
+                                    />
+                                    {phoneError && (
+                                        <label className="label">
+                                            <span className="label-text-alt text-error">{phoneError}</span>
+                                        </label>
+                                    )}
+                                </div>
+
+                                <button
+                                    onClick={startPhoneVerification}
+                                    disabled={phoneLoading || !formData.phone.trim()}
+                                    className="btn btn-primary w-full"
+                                >
+                                    {phoneLoading ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Sending Code...
+                                        </>
+                                    ) : (
+                                        <>
+                                            Send Verification Code
+                                            <ArrowRight className="w-4 h-4 ml-2" />
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Step 7: Phone Code Verification */}
+                        {currentStep === 7 && (
+                            <div className="space-y-6">
+                                <div className="text-center mb-6">
+                                    <Shield className="w-12 h-12 text-primary mx-auto mb-2" />
+                                    <h2 className="card-title justify-center">Verify Your Phone</h2>
+                                    <p className="text-sm text-base-content/70">
+                                        Enter the 6-digit code sent to {formData.phone}
+                                    </p>
+                                </div>
+
+                                <div className="form-control">
+                                    <label className="label">
+                                        <span className="label-text">Verification Code</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.verification_code}
+                                        onChange={(e) => {
+                                            const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                                            handleInputChange('verification_code', value);
+                                            setCodeError("");
+                                        }}
+                                        className={`input input-bordered input-primary w-full text-center text-2xl tracking-widest ${codeError ? 'input-error' : formData.phone_verified ? 'input-success' : ''}`}
+                                        placeholder="123456"
+                                        maxLength={6}
+                                        disabled={codeLoading || formData.phone_verified}
+                                    />
+                                    {codeError && (
+                                        <label className="label">
+                                            <span className="label-text-alt text-error">{codeError}</span>
+                                        </label>
+                                    )}
+                                    {formData.phone_verified && (
+                                        <label className="label">
+                                            <span className="label-text-alt text-success flex items-center">
+                                                <CheckCircle className="w-4 h-4 mr-1" />
+                                                Phone verified successfully!
+                                            </span>
+                                        </label>
+                                    )}
+                                </div>
+
+                                {!formData.phone_verified && (
+                                    <button
+                                        onClick={verifyPhoneCode}
+                                        disabled={codeLoading || formData.verification_code.length !== 6}
+                                        className="btn btn-primary w-full"
+                                    >
+                                        {codeLoading ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                Verifying...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Shield className="w-4 h-4 mr-2" />
+                                                Verify Code
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+
+                                {formData.phone_verified && (
+                                    <div className="text-center">
+                                        <div className="alert alert-success">
+                                            <CheckCircle className="w-5 h-5" />
+                                            <span>Your phone number has been verified! You can now complete your profile.</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {!formData.phone_verified && (
+                                    <div className="text-center">
+                                        <button
+                                            onClick={() => setCurrentStep(6)}
+                                            className="btn btn-ghost btn-sm"
+                                        >
+                                            Wrong number? Go back
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* Error Alert */}
                         {error && (
                             <div className="alert alert-error mt-6">
@@ -594,44 +868,80 @@ export default function OnboardingPage() {
                         )}
 
                         {/* Navigation Buttons */}
-                        <div className="flex justify-between items-center mt-8">
-                            <button
-                                onClick={prevStep}
-                                disabled={currentStep === 1}
-                                className="btn btn-ghost"
-                            >
-                                <ArrowLeft className="w-4 h-4 mr-2" />
-                                Back
-                            </button>
+                        {/* Hide navigation during phone verification steps since they have their own buttons */}
+                        {currentStep !== 6 && currentStep !== 7 && (
+                            <div className="flex justify-between items-center mt-8">
+                                <button
+                                    onClick={prevStep}
+                                    disabled={currentStep === 1}
+                                    className="btn btn-ghost"
+                                >
+                                    <ArrowLeft className="w-4 h-4 mr-2" />
+                                    Back
+                                </button>
 
-                            {currentStep < TOTAL_STEPS ? (
+                                {currentStep < TOTAL_STEPS ? (
+                                    <button
+                                        onClick={nextStep}
+                                        className="btn btn-primary"
+                                    >
+                                        Next
+                                        <ArrowRight className="w-4 h-4 ml-2" />
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={handleSubmit}
+                                        disabled={loading}
+                                        className="btn btn-primary"
+                                    >
+                                        {loading ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                                Completing...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CheckCircle className="w-4 h-4 mr-2" />
+                                                Complete Profile
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Special navigation for phone verification step 7 */}
+                        {currentStep === 7 && (
+                            <div className="flex justify-between items-center mt-8">
                                 <button
-                                    onClick={nextStep}
-                                    className="btn btn-primary"
+                                    onClick={() => setCurrentStep(6)}
+                                    className="btn btn-ghost"
                                 >
-                                    Next
-                                    <ArrowRight className="w-4 h-4 ml-2" />
+                                    <ArrowLeft className="w-4 h-4 mr-2" />
+                                    Back
                                 </button>
-                            ) : (
-                                <button
-                                    onClick={handleSubmit}
-                                    disabled={loading}
-                                    className="btn btn-primary"
-                                >
-                                    {loading ? (
-                                        <>
-                                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                                            Completing...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <CheckCircle className="w-4 h-4 mr-2" />
-                                            Complete Profile
-                                        </>
-                                    )}
-                                </button>
-                            )}
-                        </div>
+
+                                {formData.phone_verified && (
+                                    <button
+                                        onClick={handleSubmit}
+                                        disabled={loading}
+                                        className="btn btn-primary"
+                                    >
+                                        {loading ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                                Completing...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CheckCircle className="w-4 h-4 mr-2" />
+                                                Complete Profile
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 

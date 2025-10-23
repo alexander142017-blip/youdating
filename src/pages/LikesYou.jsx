@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { getCurrentUser } from '@/api/auth';
 import { supabase } from '@/api/supabase';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";

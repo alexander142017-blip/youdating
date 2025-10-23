@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { getCurrentUser } from '@/api/auth';
 import { upsertProfile } from '@/api/profiles';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ArrowLeft, Trash2, PlusCircle, X, ImagePlus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -62,7 +62,7 @@ export default function EditProfilePage() {
     });
 
     const uploadFileMutation = useMutation({
-        mutationFn: (file) => {
+        mutationFn: (_file) => {
             // TODO: Implement file upload using Supabase Storage
             throw new Error('File upload not implemented. Implement using Supabase Storage in EditProfile.jsx');
         },

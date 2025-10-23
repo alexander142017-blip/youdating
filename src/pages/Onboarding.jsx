@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getCurrentSessionUser } from '@/api/session';
-import { completeOnboarding } from '@/api/profiles';
 import { supabase } from '@/api/supabase';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -23,8 +22,7 @@ import {
   X,
   Phone,
   Shield,
-  Target,
-  Navigation
+  Target
 } from 'lucide-react';
 
 // Phone verification is optional by default. Enable with VITE_REQUIRE_PHONE_VERIFICATION=1
@@ -61,13 +59,13 @@ export default function OnboardingPage() {
     const [codeLoading, setCodeLoading] = useState(false);
     const [phoneError, setPhoneError] = useState("");
     const [codeError, setCodeError] = useState("");
-    const [phoneSent, setPhoneSent] = useState(false);
+    const [, setPhoneSent] = useState(false);
 
     useEffect(() => {
         checkAuthStatus();
-    }, []);
+    }, [checkAuthStatus]);
 
-    const checkAuthStatus = async () => {
+    const checkAuthStatus = useCallback(async () => {
         try {
             const user = await getCurrentSessionUser();
             if (!user) {
@@ -77,7 +75,7 @@ export default function OnboardingPage() {
             console.error("Auth check failed:", error);
             navigate(createPageUrl("auth"));
         }
-    };
+    }, [navigate]);
 
     const handleInputChange = (field, value) => {
         setFormData(prev => ({
@@ -179,7 +177,7 @@ export default function OnboardingPage() {
                     return false;
                 }
                 break;
-            case 2:
+            case 2: {
                 if (!formData.date_of_birth) {
                     setError("Please select your date of birth");
                     return false;
@@ -205,6 +203,7 @@ export default function OnboardingPage() {
                     return false;
                 }
                 break;
+            }
             case 3:
                 if (formData.photos.length === 0) {
                     setError("Please upload at least one photo");
@@ -231,7 +230,7 @@ export default function OnboardingPage() {
                     return false;
                 }
                 break;
-            case 6:
+            case 6: {
                 if (!formData.phone.trim()) {
                     setPhoneError("Please enter your phone number");
                     return false;
@@ -242,6 +241,7 @@ export default function OnboardingPage() {
                     return false;
                 }
                 break;
+            }
             case 7:
                 if (!formData.phone_verified) {
                     setCodeError("Please verify your phone number first");
@@ -479,17 +479,17 @@ export default function OnboardingPage() {
             
             // Attempt reverse geocoding
             try {
-                const response = await fetch(`/api/geocode/reverse?lat=${coords.lat}&lng=${coords.lng}`);
-                const data = await response.json();
+                const r = await fetch(`/api/geocode/reverse?lat=${coords.lat}&lng=${coords.lng}`);
+                const g = await r.json();
                 
-                if (data?.ok) {
+                if (g?.ok) {
                     setFormData(f => ({
                         ...f,
-                        city: data.city ?? f.city ?? "",
-                        state: data.state ?? f.state ?? "",
-                        country: data.country ?? f.country ?? "",
+                        city: g.city || f.city || '',
+                        state: g.state || f.state || '',
+                        country: g.country || f.country || ''
                     }));
-                    setDetectedLocation([data.city, data.state, data.country].filter(Boolean).join(", "));
+                    setDetectedLocation(`${g.city || ''}, ${g.state || ''}, ${g.country || ''}`);
                 } else {
                     setDetectedLocation(null); // silently ignore geocoding failure
                 }
@@ -517,7 +517,7 @@ export default function OnboardingPage() {
         setError("");
         
         try {
-            // Fetch the session and userId from Supabase
+            // Fetch the current Supabase session and userId
             const { data: { session } } = await supabase.auth.getSession();
             const userId = session?.user?.id;
             if (!userId) throw new Error("Not signed in");
@@ -528,57 +528,35 @@ export default function OnboardingPage() {
                 throw new Error("Min 20 chars");
             }
             
-            // Must have at least 1 photo
-            const photos = Array.isArray(formData.photos) ? formData.photos : [];
-            if (photos.length < 1) throw new Error("Please add at least one photo.");
-            
-            // Must have verified phone (only if phone verification is required)
-            if (PHONE_VERIFICATION_REQUIRED && !formData.phone_verified) {
-                throw new Error("Please verify your phone number first.");
-            }
-            
-            // Check if profile row exists
+            // Check if a row exists in profiles for that userId
             const { data: existing } = await supabase
                 .from('profiles')
                 .select('user_id')
                 .eq('user_id', userId)
                 .maybeSingle();
             
-            // If no row, create one
             if (!existing) {
-                const { error: insertError } = await supabase
+                await supabase
                     .from('profiles')
                     .insert({ user_id: userId });
-                    
-                if (insertError) {
-                    console.error(insertError);
-                    throw new Error(insertError.message);
-                }
             }
             
-            // Update profile with bio, location, and completion status
-            // TODO: If table lacks these columns, run:
-            // alter table public.profiles
-            //   add column if not exists city text,
-            //   add column if not exists state text,
-            //   add column if not exists country text;
-            // NOTIFY pgrst, 'reload schema';
-            const { error: updateError } = await supabase
+            // Update profile with bio and completion status
+            const { error } = await supabase
                 .from('profiles')
                 .update({ 
                     bio: aboutMe.trim(), 
-                    city: formData.city?.trim() || null,
-                    state: formData.state?.trim() || null,
-                    country: formData.country?.trim() || null,
                     onboarding_complete: true 
                 })
                 .eq('user_id', userId);
             
-            if (updateError) {
-                console.error(updateError);
-                throw new Error(updateError.message);
+            if (error) {
+                console.error(error);
+                alert(`Database error: ${error.message}`);
+                return;
             }
             
+            // Redirect to /discover on success
             navigate("/discover");
             
         } catch (error) {
@@ -906,7 +884,7 @@ export default function OnboardingPage() {
 
                                     {detectedLocation && (
                                         <div className="text-sm text-base-content/60 bg-base-100 p-2 rounded border">
-                                            <span className="text-success">Detected:</span> {detectedLocation} — you can edit.
+                                            Detected: {detectedLocation} (editable)
                                         </div>
                                     )}
                                 </div>

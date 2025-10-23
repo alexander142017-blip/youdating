@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { getCurrentUser } from '@/api/auth';
-import { upsertProfile } from '@/api/profiles';
+
 import { supabase } from '@/api/supabase';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';

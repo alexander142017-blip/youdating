@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Mail, Heart, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { supabase } from "@/api/supabase";
 import { createPageUrl } from "@/utils";

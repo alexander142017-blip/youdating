@@ -1,12 +1,11 @@
 
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { 
   Heart, 
   MessageCircle, 
-  Users, 
   User, 
   Compass,
   Store as StoreIcon, 
@@ -58,7 +57,7 @@ export default function Layout() {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const { data: currentUser, isLoading, isError } = useQuery({
+  const { data: currentUser, isLoading } = useQuery({
     queryKey: ['current-user'],
     queryFn: getCurrentUser,
     staleTime: 5 * 60 * 1000,

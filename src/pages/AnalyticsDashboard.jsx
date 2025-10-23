@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { getCurrentUser } from '@/api/auth';
 import { supabase } from '@/api/supabase';
 import { useQuery } from '@tanstack/react-query';
@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, TrendingUp, Users, Heart, MessageSquare, ShieldAlert, BarChart3, AlertTriangle } from 'lucide-react';
+import { Loader2, TrendingUp, Users, Heart, MessageSquare, BarChart3, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, subDays } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';

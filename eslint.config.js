@@ -30,14 +30,19 @@ export default [
       }
     }
   },
-  pluginJs.configs.recommended,
-  ...pluginReact.configs.flat.recommended,
+  js.configs.recommended,
+  react.configs.flat.recommended,
   {
+    plugins: {
+      'react-hooks': reactHooks,
+      'react-refresh': reactRefresh,
+    },
     rules: {
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "warn",
       "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
-      "react/no-unescaped-entities": "warn"
+      "react/no-unescaped-entities": "warn",
+      ...reactHooks.configs.recommended.rules,
     },
   },
 ];

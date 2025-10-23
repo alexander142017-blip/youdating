@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Navigate } from "react-router-dom";
 import { supabase } from "../api/supabase";
 
@@ -10,9 +10,9 @@ export default function HomeGate() {
 
   useEffect(() => {
     checkUserStatus();
-  }, []);
+  }, [checkUserStatus]);
 
-  const checkUserStatus = async () => {
+  const checkUserStatus = useCallback(async () => {
     try {
       // Check if user is logged in
       const { data: { session } } = await supabase.auth.getSession();
@@ -45,7 +45,7 @@ export default function HomeGate() {
       // Default to auth page on error
       setRedirect("/auth");
     }
-  };
+  }, [phoneVerificationRequired]);
 
   // Return null while loading (minimal approach)
   if (!redirect) {

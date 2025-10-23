@@ -16,7 +16,7 @@ export default defineConfig({
   build: {
     sourcemap: false,
     target: "es2019",
-    chunkSizeWarningLimit: 900, // temporary; we'll reduce later
+    chunkSizeWarningLimit: 900, // TODO: Reduce to 500KB once remaining optimizations are complete
     rollupOptions: {
       output: {
         manualChunks(id) {

@@ -268,6 +268,15 @@ export default function AuthStart() {
             </div>
           )}
           
+          {/* Forgot password link for Sign In mode */}
+          {formMode === 'signin' && (
+            <div className="mt-2 text-right">
+              <a href="/auth/forgot" className="link link-primary text-sm">
+                Forgot password?
+              </a>
+            </div>
+          )}
+          
           <button
             type="submit"
             className={`btn btn-primary w-full ${loading ? 'loading' : ''}`}

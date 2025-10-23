@@ -24,19 +24,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Create .env from secrets (if provided)
-        env:
-          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-        run: |
-          if [ -n "$SUPABASE_URL" ]; then
-            echo "VITE_SUPABASE_URL=$SUPABASE_URL" >> .env
-          fi
-          if [ -n "$SUPABASE_ANON_KEY" ]; then
-            echo "VITE_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> .env
-          fi
-
       - name: Build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://crkobgwfntptojxywjyg.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNya29iZ3dmbnRwdG9qeHl3anlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA5NTQxNjUsImV4cCI6MjA3NjUzMDE2NX0.ZulC8ZCvR0PAYv77bNmEgs2y905NrbTOCw_9LxsTOK4' }}
         run: npm run build
 
       - name: Upload build log

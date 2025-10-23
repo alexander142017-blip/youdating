@@ -40,6 +40,7 @@ export default function OnboardingPage() {
     const [error, setError] = useState("");
     const [locationError, setLocationError] = useState("");
     const [coordinates, setCoordinates] = useState(null);
+    const [detectedLocation, setDetectedLocation] = useState(null);
     const fileInputRef = useRef(null);
     const [formData, setFormData] = useState({
         first_name: "",
@@ -47,6 +48,8 @@ export default function OnboardingPage() {
         gender: "",
         looking_for: "",
         city: "",
+        state: "",
+        country: "",
         bio: "",
         photos: [],
         phone: "",
@@ -220,7 +223,7 @@ export default function OnboardingPage() {
                     return false;
                 }
                 if (formData.bio.trim().length < 20) {
-                    setError("Bio must be at least 20 characters long");
+                    setError("Min 20 chars");
                     return false;
                 }
                 if (formData.bio.trim().length > 500) {
@@ -425,6 +428,7 @@ export default function OnboardingPage() {
         const hasPhotos = formData.photos.length > 0;
         const hasVerifiedPhone = formData.phone_verified;
         const phoneRequired = PHONE_VERIFICATION_REQUIRED;
+        const hasBio = formData.bio.trim().length >= 20;
         
         if (!hasPhotos && phoneRequired && !hasVerifiedPhone) {
             return {
@@ -447,6 +451,13 @@ export default function OnboardingPage() {
                 icon: AlertCircle,
                 text: 'Verify Phone First'
             };
+        } else if (!hasBio) {
+            return {
+                className: 'btn-warning',
+                title: 'Min 20 chars required for bio',
+                icon: AlertCircle,
+                text: 'Complete Bio'
+            };
         } else {
             return {
                 className: 'btn-primary',
@@ -460,13 +471,40 @@ export default function OnboardingPage() {
     const handleLocationCapture = async () => {
         setLocationLoading(true);
         setLocationError("");
+        setDetectedLocation(null);
         
         try {
             const coords = await saveCoordsToProfile();
             setCoordinates(coords);
-            // Success message could be shown here via toast
+            
+            // Attempt reverse geocoding
+            try {
+                const response = await fetch(`/api/geocode/reverse?lat=${coords.lat}&lng=${coords.lng}`);
+                const data = await response.json();
+                
+                if (data?.ok) {
+                    setFormData(f => ({
+                        ...f,
+                        city: data.city ?? f.city ?? "",
+                        state: data.state ?? f.state ?? "",
+                        country: data.country ?? f.country ?? "",
+                    }));
+                    setDetectedLocation([data.city, data.state, data.country].filter(Boolean).join(", "));
+                } else {
+                    setDetectedLocation(null); // silently ignore geocoding failure
+                }
+            } catch (geocodeError) {
+                console.log("Reverse geocoding failed:", geocodeError);
+                setDetectedLocation(null); // silently ignore
+            }
         } catch (error) {
-            const msg = error?.message || "Could not get your location";
+            let msg = error?.message || "Could not get your location";
+            
+            // Handle specific geolocation errors with friendly messages
+            if (msg.includes('denied') || msg.includes('permission')) {
+                msg = "We couldn't access your location. You can enter your city manually.";
+            }
+            
             setLocationError(msg);
             console.error("Location capture error:", error);
         } finally {
@@ -477,10 +515,18 @@ export default function OnboardingPage() {
     const handleFinishOnboarding = async () => {
         setLoading(true);
         setError("");
+        
         try {
+            // Fetch the session and userId from Supabase
             const { data: { session } } = await supabase.auth.getSession();
             const userId = session?.user?.id;
             if (!userId) throw new Error("Not signed in");
+            
+            // Guard: minimum 20 characters for bio
+            const aboutMe = formData.bio || "";
+            if (aboutMe.trim().length < 20) {
+                throw new Error("Min 20 chars");
+            }
             
             // Must have at least 1 photo
             const photos = Array.isArray(formData.photos) ? formData.photos : [];
@@ -491,51 +537,54 @@ export default function OnboardingPage() {
                 throw new Error("Please verify your phone number first.");
             }
             
-            // Calculate age from date of birth
-            const birthDate = new Date(formData.date_of_birth);
-            const today = new Date();
-            let age = today.getFullYear() - birthDate.getFullYear();
-            const monthDiff = today.getMonth() - birthDate.getMonth();
-            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-                age--;
+            // Check if profile row exists
+            const { data: existing } = await supabase
+                .from('profiles')
+                .select('user_id')
+                .eq('user_id', userId)
+                .maybeSingle();
+            
+            // If no row, create one
+            if (!existing) {
+                const { error: insertError } = await supabase
+                    .from('profiles')
+                    .insert({ user_id: userId });
+                    
+                if (insertError) {
+                    console.error(insertError);
+                    throw new Error(insertError.message);
+                }
             }
-
-            // Prepare onboarding data with all required fields
-            const onboardingData = {
-                first_name: formData.first_name.trim(),
-                name: formData.first_name.trim(),
-                date_of_birth: formData.date_of_birth,
-                age: age,
-                gender: formData.gender,
-                looking_for: formData.looking_for,
-                city: formData.city.trim(),
-                bio: formData.bio.trim(),
-                photos: photos,
-                profile_photo_url: photos[0] || null,
-                has_photos: photos.length > 0,
-                phone_e164: formData.phone,
-                phone_verified: formData.phone_verified,
-                show_on_discover: true,
-                show_distance: true,
-                show_age: true
-            };
-
-            // Complete onboarding through API
-            await completeOnboarding(onboardingData);
-
-            // Mark onboarding as complete
-            const { error } = await supabase
-                .from("profiles")
-                .update({ onboarding_complete: true })
-                .eq("user_id", userId);
-            if (error) throw error;
+            
+            // Update profile with bio, location, and completion status
+            // TODO: If table lacks these columns, run:
+            // alter table public.profiles
+            //   add column if not exists city text,
+            //   add column if not exists state text,
+            //   add column if not exists country text;
+            // NOTIFY pgrst, 'reload schema';
+            const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ 
+                    bio: aboutMe.trim(), 
+                    city: formData.city?.trim() || null,
+                    state: formData.state?.trim() || null,
+                    country: formData.country?.trim() || null,
+                    onboarding_complete: true 
+                })
+                .eq('user_id', userId);
+            
+            if (updateError) {
+                console.error(updateError);
+                throw new Error(updateError.message);
+            }
             
             navigate("/discover");
             
-        } catch (e) {
-            const msg = e?.message || "Could not finish onboarding";
-            setError(msg);
-            console.error(e);
+        } catch (error) {
+            const message = error?.message || "Could not finish onboarding";
+            setError(message);
+            console.error(error);
         } finally {
             setLoading(false);
         }
@@ -810,23 +859,56 @@ export default function OnboardingPage() {
                                     </p>
                                 </div>
 
-                                <div className="form-control">
-                                    <label className="label">
-                                        <span className="label-text">City</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={formData.city}
-                                        onChange={(e) => handleInputChange('city', e.target.value)}
-                                        className="input input-bordered input-primary w-full"
-                                        placeholder="Enter your city"
-                                        maxLength={100}
-                                    />
-                                    <label className="label">
-                                        <span className="label-text-alt">
-                                            e.g., New York, London, Tokyo
-                                        </span>
-                                    </label>
+                                <div className="grid grid-cols-1 gap-4">
+                                    <div className="form-control">
+                                        <label className="label">
+                                            <span className="label-text">City</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.city}
+                                            onChange={(e) => handleInputChange('city', e.target.value)}
+                                            className="input input-bordered input-primary w-full"
+                                            placeholder="Enter your city"
+                                            maxLength={100}
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="form-control">
+                                            <label className="label">
+                                                <span className="label-text">State/Region</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={formData.state}
+                                                onChange={(e) => handleInputChange('state', e.target.value)}
+                                                className="input input-bordered input-primary w-full"
+                                                placeholder="State/Region"
+                                                maxLength={100}
+                                            />
+                                        </div>
+
+                                        <div className="form-control">
+                                            <label className="label">
+                                                <span className="label-text">Country</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={formData.country}
+                                                onChange={(e) => handleInputChange('country', e.target.value)}
+                                                className="input input-bordered input-primary w-full"
+                                                placeholder="Country"
+                                                maxLength={100}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {detectedLocation && (
+                                        <div className="text-sm text-base-content/60 bg-base-100 p-2 rounded border">
+                                            <span className="text-success">Detected:</span> {detectedLocation} — you can edit.
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* GPS Location Capture */}
@@ -1073,7 +1155,7 @@ export default function OnboardingPage() {
                                 ) : (
                                     <button
                                         onClick={handleSubmit}
-                                        disabled={loading}
+                                        disabled={loading || formData.bio.trim().length < 20}
                                         className={`btn ${getCompletionButtonState().className}`}
                                         title={getCompletionButtonState().title}
                                     >
@@ -1110,7 +1192,7 @@ export default function OnboardingPage() {
                                 {formData.phone_verified && (
                                     <button
                                         onClick={handleSubmit}
-                                        disabled={loading}
+                                        disabled={loading || formData.bio.trim().length < 20}
                                         className={`btn ${getCompletionButtonState().className}`}
                                         title={getCompletionButtonState().title}
                                     >

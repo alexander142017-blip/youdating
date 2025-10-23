@@ -6,8 +6,19 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default [
   { 
-    files: ["**/*.{js,mjs,cjs,jsx}"],
-    ignores: ["dist/**", "build/**", "node_modules/**"]
+    ignores: ["dist/**", "build/**", "node_modules/**", "**/*.min.js", "dist/**/*.js"]
+  },
+  { 
+    files: ["**/*.{js,mjs,cjs,jsx}"]
+  },
+  // Node.js scripts configuration
+  {
+    files: ["scripts/**/*.js", "scripts_migrate-*.js"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
   },
   { 
     languageOptions: { 
@@ -30,14 +41,19 @@ export default [
       }
     }
   },
-  pluginJs.configs.recommended,
-  ...pluginReact.configs.flat.recommended,
+  js.configs.recommended,
+  react.configs.flat.recommended,
   {
+    plugins: {
+      'react-hooks': reactHooks,
+      'react-refresh': reactRefresh,
+    },
     rules: {
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "warn",
       "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
-      "react/no-unescaped-entities": "warn"
+      "react/no-unescaped-entities": "warn",
+      ...reactHooks.configs.recommended.rules,
     },
   },
 ];

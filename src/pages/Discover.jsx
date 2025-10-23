@@ -83,7 +83,7 @@ export default function DiscoverPage() {
         {/* Sidebar */}
         <div className="space-y-6">
           <div className="bg-white rounded-2xl shadow-lg border p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Today's Activity</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Today&apos;s Activity</h3>
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Profiles seen</span>

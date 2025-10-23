@@ -582,7 +582,7 @@ export default function AuthStart() {
                     required
                   />
                   <label className="label">
-                    <span className="label-text-alt">We'll send you a 6-digit SMS code</span>
+                    <span className="label-text-alt">We&apos;ll send you a 6-digit SMS code</span>
                   </label>
                 </div>
                 

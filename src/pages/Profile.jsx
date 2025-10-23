@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { User, Edit, Settings, Camera, MapPin, Cake, CheckCircle, Loader2, Target, Navigation, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { User, Edit, Settings, Camera, MapPin, CheckCircle, Loader2, Target, AlertCircle } from "lucide-react";
 import { getCurrentUser } from "../api/auth";
 import { getProfile, upsertProfile } from "../api/profiles";
 import { saveCoordsToProfile } from "../utils/location";
@@ -12,7 +12,7 @@ export default function ProfilePage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [error, setError] = useState('');
   const [locationError, setLocationError] = useState('');
-  const [coordinates, setCoordinates] = useState(null);
+  const [, setCoordinates] = useState(null);
   
   // Form fields
   const [formData, setFormData] = useState({

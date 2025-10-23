@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { getCurrentSessionUser } from './session';
-import { handleSupabaseError, validateUserSession, executeWithErrorHandling } from '../utils/rlsErrorHandler';
+import { validateUserSession, executeWithErrorHandling } from '../utils/rlsErrorHandler';
 
 /**
  * Get profile by userId or email.
@@ -205,7 +205,7 @@ export async function searchProfiles(filters = {}) {
     const {
       ageMin = 18,
       ageMax = 99,
-      maxDistance = 50,
+      // maxDistance = 50, // TODO: Implement distance filtering
       limit = 10,
       offset = 0
     } = filters;

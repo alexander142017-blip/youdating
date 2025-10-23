@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
+import PropTypes from "prop-types";
 import { getCurrentUser } from '@/api/auth';
 import { supabase } from '@/api/supabase';
 import { useQuery } from '@tanstack/react-query';
@@ -6,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, TrendingUp, Users, Heart, MessageSquare, ShieldAlert, BarChart3, AlertTriangle } from 'lucide-react';
+import { Loader2, TrendingUp, Users, Heart, MessageSquare, BarChart3, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, subDays } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
@@ -25,6 +26,12 @@ const StatCard = ({ title, value, icon }) => {
             </CardContent>
         </Card>
     );
+};
+
+StatCard.propTypes = {
+    title: PropTypes.string.isRequired,
+    value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    icon: PropTypes.elementType.isRequired,
 };
 
 const getFunnelStepCount = (events, users, stepType, distinctUsers) => {

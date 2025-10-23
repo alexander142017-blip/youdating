@@ -1,4 +1,5 @@
-import React, { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
+import PropTypes from "prop-types";
 import {
   Dialog,
   DialogContent,
@@ -8,10 +9,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Camera, CheckCircle, Shield } from "lucide-react";
-import { upsertProfile } from "@/api/profiles";
 import { toast } from 'sonner';
 
-export default function VerificationModal({ isOpen, onClose, onVerified }) {
+export default function VerificationModal({ isOpen, onClose, onVerified: _onVerified }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [isCameraReady, setIsCameraReady] = useState(false);
@@ -69,22 +69,23 @@ export default function VerificationModal({ isOpen, onClose, onVerified }) {
       ctx.drawImage(videoRef.current, 0, 0);
 
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
-      const file = new File([blob], `verification-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      /* const _file = */ new File([blob], `verification-${Date.now()}.jpg`, { type: 'image/jpeg' });
       
       // TODO: Implement file upload using Supabase Storage
       toast.error("Photo upload not implemented. Implement using Supabase Storage in VerificationModal.jsx");
-      throw new Error("Upload not implemented");
       
-      // After implementing upload:
+      // TODO: After implementing upload:
+      // const file_url = await uploadToSupabase(file);
       // await upsertProfile({
       //   is_verified: true,
       //   verification_photo: file_url,
       //   verification_date: new Date().toISOString()
       // });
-
-      stopCamera();
-      onVerified();
-      onClose();
+      // stopCamera();
+      // onVerified();
+      // onClose();
+      
+      throw new Error("Upload not implemented");
     } catch (error) {
       console.error("Error during verification:", error);
       toast.error("Verification failed. Please try again.");
@@ -122,7 +123,7 @@ export default function VerificationModal({ isOpen, onClose, onVerified }) {
               Verification Tips:
             </h4>
             <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Make sure you're in a well-lit area</li>
+              <li>• Make sure you&apos;re in a well-lit area</li>
               <li>• Look directly at the camera</li>
               <li>• Remove sunglasses or hats</li>
               <li>• Position your face in the center of the frame</li>
@@ -200,3 +201,9 @@ export default function VerificationModal({ isOpen, onClose, onVerified }) {
     </Dialog>
   );
 }
+
+VerificationModal.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  onVerified: PropTypes.func,
+};

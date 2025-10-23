@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Mail, Heart, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { supabase } from "@/api/supabase";
 import { createPageUrl } from "@/utils";
@@ -184,7 +184,7 @@ export default function AuthPage() {
                   </p>
                   <p className="flex items-start gap-2">
                     <span className="font-medium">2.</span>
-                    We'll send you a secure magic link
+                    We&apos;ll send you a secure magic link
                   </p>
                   <p className="flex items-start gap-2">
                     <span className="font-medium">3.</span>

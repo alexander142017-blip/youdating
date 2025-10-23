@@ -2,7 +2,7 @@ import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Layout from './Layout';
 import HomeGate from './HomeGate';
-import Auth from './Auth';
+import AuthStart from './AuthStart';
 import AuthCallback from './AuthCallback';
 import Onboarding from './Onboarding';
 import ProtectedRoute from '../components/ProtectedRoute';
@@ -20,7 +20,7 @@ export default function AppRoutes() {
         <Route index element={<HomeGate />} />
         
         {/* Auth pages - no protection needed */}
-        <Route path="auth" element={<Auth />} />
+        <Route path="auth" element={<AuthStart />} />
         <Route path="auth/callback" element={<AuthCallback />} />
         
         {/* Onboarding - requires login only */}

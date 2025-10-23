@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { toE164 } from '@/utils/phone';
 import { uploadProfilePhoto } from '../utils/upload';
+import { saveCoordsToProfile } from '../utils/location';
 import { 
   Loader2, 
   ArrowLeft, 
@@ -21,7 +22,9 @@ import {
   Upload,
   X,
   Phone,
-  Shield
+  Shield,
+  Target,
+  Navigation
 } from 'lucide-react';
 
 const TOTAL_STEPS = 7;
@@ -33,7 +36,10 @@ export default function OnboardingPage() {
     const [currentStep, setCurrentStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [locationLoading, setLocationLoading] = useState(false);
     const [error, setError] = useState("");
+    const [locationError, setLocationError] = useState("");
+    const [coordinates, setCoordinates] = useState(null);
     const fileInputRef = useRef(null);
     const [formData, setFormData] = useState({
         first_name: "",
@@ -363,6 +369,58 @@ export default function OnboardingPage() {
         }
     };
 
+    const getCompletionButtonState = () => {
+        const hasPhotos = formData.photos.length > 0;
+        const hasVerifiedPhone = formData.phone_verified;
+        
+        if (!hasPhotos && !hasVerifiedPhone) {
+            return {
+                className: 'btn-warning',
+                title: 'Photos and phone verification required',
+                icon: AlertCircle,
+                text: 'Add Photos & Verify Phone'
+            };
+        } else if (!hasPhotos) {
+            return {
+                className: 'btn-warning', 
+                title: 'At least 1 photo required',
+                icon: AlertCircle,
+                text: 'Add Photos First'
+            };
+        } else if (!hasVerifiedPhone) {
+            return {
+                className: 'btn-warning',
+                title: 'Phone verification required', 
+                icon: AlertCircle,
+                text: 'Verify Phone First'
+            };
+        } else {
+            return {
+                className: 'btn-primary',
+                title: 'Ready to complete profile',
+                icon: CheckCircle,
+                text: 'Complete Profile'
+            };
+        }
+    };
+
+    const handleLocationCapture = async () => {
+        setLocationLoading(true);
+        setLocationError("");
+        
+        try {
+            const coords = await saveCoordsToProfile();
+            setCoordinates(coords);
+            // Success message could be shown here via toast
+        } catch (error) {
+            const msg = error?.message || "Could not get your location";
+            setLocationError(msg);
+            console.error("Location capture error:", error);
+        } finally {
+            setLocationLoading(false);
+        }
+    };
+
     const handleFinishOnboarding = async () => {
         setLoading(true);
         setError("");
@@ -374,6 +432,9 @@ export default function OnboardingPage() {
             // Must have at least 1 photo
             const photos = Array.isArray(formData.photos) ? formData.photos : [];
             if (photos.length < 1) throw new Error("Please add at least one photo.");
+            
+            // Must have verified phone
+            if (!formData.phone_verified) throw new Error("Please verify your phone number first.");
             
             // Calculate age from date of birth
             const birthDate = new Date(formData.date_of_birth);
@@ -703,6 +764,44 @@ export default function OnboardingPage() {
                                         </span>
                                     </label>
                                 </div>
+
+                                {/* GPS Location Capture */}
+                                <div className="divider">OR</div>
+                                
+                                <div className="space-y-4">
+                                    <button
+                                        type="button"
+                                        onClick={handleLocationCapture}
+                                        disabled={locationLoading}
+                                        className="btn btn-outline btn-primary w-full"
+                                    >
+                                        {locationLoading ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                                Getting location...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Target className="w-4 h-4 mr-2" />
+                                                Use my location
+                                            </>
+                                        )}
+                                    </button>
+
+                                    {locationError && (
+                                        <div className="alert alert-error">
+                                            <AlertCircle className="w-4 h-4" />
+                                            <span>{locationError}</span>
+                                        </div>
+                                    )}
+
+                                    {coordinates && (
+                                        <div className="alert alert-success">
+                                            <CheckCircle className="w-4 h-4" />
+                                            <span>Location saved! ({coordinates.lat.toFixed(4)}, {coordinates.lng.toFixed(4)})</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
 
@@ -911,23 +1010,21 @@ export default function OnboardingPage() {
                                     <button
                                         onClick={handleSubmit}
                                         disabled={loading}
-                                        className={`btn ${formData.photos.length === 0 ? 'btn-warning' : 'btn-primary'}`}
-                                        title={formData.photos.length === 0 ? 'At least 1 photo required' : ''}
+                                        className={`btn ${getCompletionButtonState().className}`}
+                                        title={getCompletionButtonState().title}
                                     >
                                         {loading ? (
                                             <>
                                                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
                                                 Completing...
                                             </>
-                                        ) : formData.photos.length === 0 ? (
-                                            <>
-                                                <AlertCircle className="w-4 h-4 mr-2" />
-                                                Add Photos First
-                                            </>
                                         ) : (
                                             <>
-                                                <CheckCircle className="w-4 h-4 mr-2" />
-                                                Complete Profile
+                                                {(() => {
+                                                    const IconComponent = getCompletionButtonState().icon;
+                                                    return <IconComponent className="w-4 h-4 mr-2" />;
+                                                })()}
+                                                {getCompletionButtonState().text}
                                             </>
                                         )}
                                     </button>
@@ -950,23 +1047,21 @@ export default function OnboardingPage() {
                                     <button
                                         onClick={handleSubmit}
                                         disabled={loading}
-                                        className={`btn ${formData.photos.length === 0 ? 'btn-warning' : 'btn-primary'}`}
-                                        title={formData.photos.length === 0 ? 'At least 1 photo required' : ''}
+                                        className={`btn ${getCompletionButtonState().className}`}
+                                        title={getCompletionButtonState().title}
                                     >
                                         {loading ? (
                                             <>
                                                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
                                                 Completing...
                                             </>
-                                        ) : formData.photos.length === 0 ? (
-                                            <>
-                                                <AlertCircle className="w-4 h-4 mr-2" />
-                                                Add Photos First
-                                            </>
                                         ) : (
                                             <>
-                                                <CheckCircle className="w-4 h-4 mr-2" />
-                                                Complete Profile
+                                                {(() => {
+                                                    const IconComponent = getCompletionButtonState().icon;
+                                                    return <IconComponent className="w-4 h-4 mr-2" />;
+                                                })()}
+                                                {getCompletionButtonState().text}
                                             </>
                                         )}
                                     </button>

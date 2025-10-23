@@ -7,7 +7,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Crown, X } from "lucide-react";
+import { Crown } from "lucide-react";
 
 export default function PaywallModal({ isOpen, onClose }) {
   return (

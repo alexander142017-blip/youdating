@@ -1,5 +1,4 @@
 import PropTypes from "prop-types";
-import { useState } from "react";
 
 // Dropdown menu components using DaisyUI classes
 export function DropdownMenu({ children }) {

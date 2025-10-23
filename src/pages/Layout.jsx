@@ -1,7 +1,7 @@
 
 
-import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
+import { useState } from "react";
+import { Link, useLocation, Outlet } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { 
   Heart, 
@@ -11,7 +11,6 @@ import {
   Store as StoreIcon, 
   Menu, 
   X, 
-  Loader2,
   Bell,
   Settings
 } from "lucide-react";
@@ -54,37 +53,16 @@ const navigationItems = [
 
 export default function Layout() {
   const location = useLocation();
-  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const { data: currentUser, isLoading } = useQuery({
+  // We don't need to use currentUser here since HomeGate handles auth,
+  // but we keep the query for potential future use
+  useQuery({
     queryKey: ['current-user'],
     queryFn: getCurrentUser,
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
-
-  useEffect(() => {
-    if (!isLoading && currentUser && !currentUser.profile_completed) {
-      navigate(createPageUrl('onboarding'));
-    }
-  }, [currentUser, isLoading, navigate]);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-base-200">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
-          <p className="text-base-content font-medium">Loading YouDating...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // If user is not authenticated or hasn't completed onboarding, show content without layout
-  if (!currentUser || !currentUser.profile_completed) {
-    return <Outlet />;
-  }
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);

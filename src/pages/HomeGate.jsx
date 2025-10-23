@@ -1,57 +1,66 @@
-import { useState, useEffect, useCallback } from "react";
-import { Navigate } from "react-router-dom";
-import { supabase } from "../api/supabase";
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import PropTypes from 'prop-types';
+import { supabase } from '../api/supabase';
 
-export default function HomeGate() {
-  // Phone verification is optional by default. Enable with VITE_REQUIRE_PHONE_VERIFICATION=1
-  const phoneVerificationRequired = import.meta.env.VITE_REQUIRE_PHONE_VERIFICATION === '1';
-  
-  const [redirect, setRedirect] = useState(null);
+export default function HomeGate({ children }) {
+  const nav = useNavigate();
+  const loc = useLocation();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkUserStatus();
-  }, [checkUserStatus]);
+    let cancelled = false;
+    async function run() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (cancelled) return;
 
-  const checkUserStatus = useCallback(async () => {
-    try {
-      // Check if user is logged in
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        // Not logged in → redirect to /auth
-        setRedirect("/auth");
-        return;
+        // If not signed in → go to /auth (but don't loop if already there)
+        if (!session) {
+          setLoading(false);
+          if (!loc.pathname.startsWith('/auth')) nav('/auth', { replace: true });
+          return;
+        }
+
+        // Load current user's profile
+        const uid = session.user.id;
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('user_id,onboarding_complete')
+          .eq('user_id', uid)
+          .maybeSingle();
+        if (cancelled) return;
+
+        setLoading(false);
+
+        // Route decisions (use lowercase canonical paths)
+        const at = loc.pathname.toLowerCase();
+        if (!prof?.onboarding_complete) {
+          if (!at.startsWith('/onboarding')) nav('/onboarding', { replace: true });
+        } else {
+          if (at === '/' || at === '/auth') nav('/discover', { replace: true });
+        }
+      } catch (e) {
+        console.error('gate error', e);
+        setLoading(false);
       }
-
-      // User is logged in, check their profile
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('onboarding_complete, phone_verified')
-        .eq('id', session.user.id)
-        .single();
-
-      if (!profile || !profile.onboarding_complete) {
-        // Onboarding not complete → redirect to /onboarding
-        setRedirect("/onboarding");
-      } else if (phoneVerificationRequired && !profile.phone_verified) {
-        // Onboarded but phone not verified → redirect to /onboarding (only if phone verification required)
-        setRedirect("/onboarding");
-      } else {
-        // Onboarding complete (and phone verified if required) → redirect to /discover
-        setRedirect("/discover");
-      }
-    } catch (error) {
-      console.error('Error checking user status:', error);
-      // Default to auth page on error
-      setRedirect("/auth");
     }
-  }, [phoneVerificationRequired]);
+    run();
+    return () => { cancelled = true; };
+  }, [loc.pathname, nav]);
 
-  // Return null while loading (minimal approach)
-  if (!redirect) {
-    return null;
+  // Always render children; show a visible loading state while checking
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-sm opacity-70">Loading…</div>
+      </div>
+    );
   }
 
-  // Navigate to determined route
-  return <Navigate to={redirect} replace />;
+  return children;
 }
+
+HomeGate.propTypes = {
+  children: PropTypes.node.isRequired
+};

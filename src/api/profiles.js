@@ -19,23 +19,34 @@ export async function getProfile({ userId, email }) {
 }
 
 /**
- * Upsert profile (insert or update).
+ * Upsert profile (insert or update) - RLS compliant.
  */
 export async function upsertProfile(profile) {
   try {
-    // Ensure updated_at is set
+    // Get current session for RLS compliance
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+    if (!userId) throw new Error("Not signed in");
+
+    // Ensure user_id is set for RLS and updated_at is current
     const profileData = {
       ...profile,
+      user_id: userId,  // REQUIRED for RLS
       updated_at: new Date().toISOString()
     };
 
     const { data, error } = await supabase
       .from('profiles')
-      .upsert(profileData, { onConflict: 'id' })
+      .upsert(profileData, { onConflict: 'user_id' })
       .select()
       .maybeSingle();
     
-    if (error) throw error;
+    if (error) {
+      if (error.message?.includes("row-level security")) {
+        throw new Error("Couldn't save profile due to security rules. Please sign in again and retry.");
+      }
+      throw error;
+    }
     return data;
   } catch (error) {
     console.error('Failed to upsert profile:', error);

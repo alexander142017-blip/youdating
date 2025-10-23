@@ -9,7 +9,10 @@
 let phoneLibPromise = null;
 const getPhoneLib = () => {
   if (!phoneLibPromise) {
-    phoneLibPromise = import('libphonenumber-js');
+    phoneLibPromise = import('libphonenumber-js').catch((err) => {
+      phoneLibPromise = null;
+      throw err;
+    });
   }
   return phoneLibPromise;
 };

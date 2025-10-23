@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { supabase } from "../api/supabase";
 
-export default function ProtectedRoute({ children, requireOnboarding = false }) {
+export default function ProtectedRoute({ children, requireOnboarding = false, needsVerifiedPhone = false }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [checked, setChecked] = useState(false);
@@ -52,6 +52,11 @@ export default function ProtectedRoute({ children, requireOnboarding = false }) 
 
   // Route needs onboarding and user hasn't completed it → redirect to /onboarding
   if (requireOnboarding && profile && !profile.onboarding_complete) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  // Route needs verified phone and user hasn't verified their phone → redirect to /onboarding
+  if (needsVerifiedPhone && profile && !profile.phone_verified) {
     return <Navigate to="/onboarding" replace />;
   }
 

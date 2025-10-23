@@ -205,7 +205,7 @@ export async function searchProfiles(filters = {}) {
     const {
       ageMin = 18,
       ageMax = 99,
-      maxDistance = 50, // TODO: Implement distance filtering
+      // maxDistance = 50, // TODO: Implement distance filtering
       limit = 10,
       offset = 0
     } = filters;

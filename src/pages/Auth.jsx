@@ -184,7 +184,7 @@ export default function AuthPage() {
                   </p>
                   <p className="flex items-start gap-2">
                     <span className="font-medium">2.</span>
-                    We'll send you a secure magic link
+                    We&apos;ll send you a secure magic link
                   </p>
                   <p className="flex items-start gap-2">
                     <span className="font-medium">3.</span>

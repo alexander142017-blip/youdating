@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Navigate } from "react-router-dom";
+import PropTypes from "prop-types";
 import { supabase } from "../api/supabase";
 
 export default function ProtectedRoute({ children, requireOnboarding = false, needsVerifiedPhone = false }) {
@@ -97,3 +98,9 @@ export default function ProtectedRoute({ children, requireOnboarding = false, ne
   // User is authenticated and meets requirements
   return children;
 }
+
+ProtectedRoute.propTypes = {
+  children: PropTypes.node.isRequired,
+  requireOnboarding: PropTypes.bool,
+  needsVerifiedPhone: PropTypes.bool,
+};

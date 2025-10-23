@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import PropTypes from "prop-types";
 import { getCurrentUser } from '@/api/auth';
 import { supabase } from '@/api/supabase';
 import { useQuery } from '@tanstack/react-query';
@@ -25,6 +26,12 @@ const StatCard = ({ title, value, icon }) => {
             </CardContent>
         </Card>
     );
+};
+
+StatCard.propTypes = {
+    title: PropTypes.string.isRequired,
+    value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    icon: PropTypes.elementType.isRequired,
 };
 
 const getFunnelStepCount = (events, users, stepType, distinctUsers) => {

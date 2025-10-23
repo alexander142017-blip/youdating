@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
+import PropTypes from "prop-types";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +9,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Camera, CheckCircle, Shield } from "lucide-react";
-
 import { toast } from 'sonner';
 
 export default function VerificationModal({ isOpen, onClose, onVerified: _onVerified }) {
@@ -123,7 +123,7 @@ export default function VerificationModal({ isOpen, onClose, onVerified: _onVeri
               Verification Tips:
             </h4>
             <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Make sure you're in a well-lit area</li>
+              <li>• Make sure you&apos;re in a well-lit area</li>
               <li>• Look directly at the camera</li>
               <li>• Remove sunglasses or hats</li>
               <li>• Position your face in the center of the frame</li>
@@ -201,3 +201,9 @@ export default function VerificationModal({ isOpen, onClose, onVerified: _onVeri
     </Dialog>
   );
 }
+
+VerificationModal.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  onVerified: PropTypes.func,
+};

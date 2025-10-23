@@ -608,7 +608,7 @@ export default function OnboardingPage() {
                     </div>
                     <h1 className="text-3xl font-bold mb-2">Complete Your Profile</h1>
                     <p className="text-base-content/70">
-                        Let's get to know you better to find your perfect match
+                        Let&apos;s get to know you better to find your perfect match
                     </p>
                 </div>
 
@@ -630,7 +630,7 @@ export default function OnboardingPage() {
                     {!PHONE_VERIFICATION_REQUIRED && import.meta.env.DEV && (
                         <div className="text-center mt-2">
                             <p className="text-xs text-base-content/50 italic">
-                                For testing: phone verification is disabled. We'll enable it later.
+                                For testing: phone verification is disabled. We&apos;ll enable it later.
                             </p>
                         </div>
                     )}
@@ -645,7 +645,7 @@ export default function OnboardingPage() {
                             <div className="space-y-6">
                                 <div className="text-center mb-6">
                                     <User className="w-12 h-12 text-primary mx-auto mb-2" />
-                                    <h2 className="card-title justify-center">What's your name?</h2>
+                                    <h2 className="card-title justify-center">What&apos;s your name?</h2>
                                     <p className="text-sm text-base-content/70">
                                         This is how others will see you on YouDating
                                     </p>
@@ -833,7 +833,7 @@ export default function OnboardingPage() {
                                     <MapPin className="w-12 h-12 text-primary mx-auto mb-2" />
                                     <h2 className="card-title justify-center">Where are you?</h2>
                                     <p className="text-sm text-base-content/70">
-                                        We'll help you find matches nearby
+                                        We&apos;ll help you find matches nearby
                                     </p>
                                 </div>
 
@@ -970,7 +970,7 @@ export default function OnboardingPage() {
                                     <Phone className="w-12 h-12 text-primary mx-auto mb-2" />
                                     <h2 className="card-title justify-center">Phone Verification</h2>
                                     <p className="text-sm text-base-content/70">
-                                        We'll send you a verification code for security
+                                        We&apos;ll send you a verification code for security
                                     </p>
                                 </div>
 

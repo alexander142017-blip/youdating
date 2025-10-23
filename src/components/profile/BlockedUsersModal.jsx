@@ -1,5 +1,6 @@
-import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import PropTypes from "prop-types";
 import { supabase } from '@/api/supabase';
 import {
   Dialog,
@@ -50,7 +51,7 @@ export default function BlockedUsersModal({ isOpen, onClose, currentUser }) {
     }
   });
 
-  const blockedUsers = React.useMemo(() => {
+  const blockedUsers = useMemo(() => {
     if (!blocks || !allUsers) return [];
     return blocks.map(block => {
         const user = allUsers.find(u => u.email === block.blocked_email);
@@ -107,3 +108,11 @@ export default function BlockedUsersModal({ isOpen, onClose, currentUser }) {
     </Dialog>
   );
 }
+
+BlockedUsersModal.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  currentUser: PropTypes.shape({
+    email: PropTypes.string.isRequired,
+  }).isRequired,
+};

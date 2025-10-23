@@ -1,5 +1,7 @@
 
 import { useState } from 'react';
+import PropTypes from 'prop-types';
+import { UserShape } from '../types/propTypes';
 import { getCurrentUser } from '@/api/auth';
 
 import { supabase } from '@/api/supabase';
@@ -99,6 +101,12 @@ const UserManagementRow = ({ user, onUpdate, onDelete }) => {
         </TableRow>
     )
 }
+
+UserManagementRow.propTypes = {
+  user: UserShape.isRequired,
+  onUpdate: PropTypes.func.isRequired,
+  onDelete: PropTypes.func.isRequired,
+};
 
 export default function AdminDashboard() {
   const navigate = useNavigate();

@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { UserShape, TargetUserShape, MatchIdType } from '../../types/propTypes';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -183,3 +184,9 @@ export default function BlockAndReport({ targetUser, currentUser, matchId }) {
     </>
   );
 }
+
+BlockAndReport.propTypes = {
+  targetUser: TargetUserShape.isRequired,
+  currentUser: UserShape.isRequired,
+  matchId: MatchIdType
+};

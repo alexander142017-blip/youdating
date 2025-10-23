@@ -13,6 +13,27 @@ import { format, subDays } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { groupBy, countBy } from 'lodash';
 
+const CustomTooltip = ({ payload, active }) => {
+    if (active && payload && payload.length > 0) {
+        const data = payload[0];
+        return [
+            `${data.value} users`, 
+            `Conversion: ${data.payload.conversion}%`
+        ];
+    }
+    return null;
+};
+
+CustomTooltip.propTypes = {
+    payload: PropTypes.arrayOf(PropTypes.shape({
+        value: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+        payload: PropTypes.shape({
+            conversion: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+        }),
+    })),
+    active: PropTypes.bool,
+};
+
 const StatCard = ({ title, value, icon }) => {
     const Icon = icon;
     return (
@@ -158,7 +179,7 @@ export default function AnalyticsDashboard() {
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis type="number" />
                                 <YAxis dataKey="name" type="category" width={100} />
-                                <Tooltip formatter={(value, name, props) => [`${value} users`, `Conversion: ${props.payload.conversion}%`]}/>
+                                <Tooltip formatter={CustomTooltip}/>
                                 <Legend />
                                 <Bar dataKey="value" fill="#fb7185" name="Users Reached" />
                             </BarChart>

@@ -24,10 +24,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // Test Supabase connection on app start
-    const testConnection = async () => {
+    // Initialize Supabase auth and set up session management
+    const initializeAuth = async () => {
       try {
-        console.log('🔗 Testing Supabase connection...');
+        console.log('🔗 Initializing Supabase authentication...');
         
         // Check if environment variables are set
         const url = import.meta.env.VITE_SUPABASE_URL;
@@ -41,22 +41,45 @@ export default function App() {
           return;
         }
         
-        // Test connection with a simple query
-        const { data, error } = await supabase.auth.getSession();
+        // Get initial session
+        const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error('❌ Supabase connection failed:', error.message);
+          console.error('❌ Failed to get initial session:', error.message);
         } else {
           console.log('✅ Supabase connected successfully!');
           console.log('📡 Supabase URL:', url);
-          console.log('🔐 Session status:', data.session ? 'Authenticated' : 'No active session');
+          console.log('🔐 Initial session status:', session ? `Authenticated as ${session.user.email}` : 'No active session');
         }
+        
       } catch (error) {
-        console.error('❌ Supabase connection test failed:', error.message);
+        console.error('❌ Auth initialization failed:', error.message);
       }
     };
     
-    testConnection();
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('🔄 Auth state changed:', event);
+      
+      if (event === 'SIGNED_IN') {
+        console.log('✅ User signed in:', session?.user?.email);
+      } else if (event === 'SIGNED_OUT') {
+        console.log('👋 User signed out');
+      } else if (event === 'TOKEN_REFRESHED') {
+        console.log('🔄 Auth token refreshed');
+      } else if (event === 'PASSWORD_RECOVERY') {
+        console.log('🔑 Password recovery initiated');
+      }
+    });
+    
+    // Initialize auth on component mount
+    initializeAuth();
+    
+    // Cleanup subscription on unmount
+    return () => {
+      console.log('🧹 Cleaning up auth subscription');
+      subscription.unsubscribe();
+    };
   }, []);
 
   return (

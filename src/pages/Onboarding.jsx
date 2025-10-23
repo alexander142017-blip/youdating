@@ -551,18 +551,29 @@ export default function OnboardingPage() {
                 .eq('user_id', userId);
             
             if (error) {
-                console.error(error);
-                alert(`Database error: ${error.message}`);
-                return;
+                console.error('Profile update error:', error);
+                throw new Error(`Database error: ${error.message}`);
             }
             
             // Redirect to /discover on success
             navigate("/discover");
             
         } catch (error) {
-            const message = error?.message || "Could not finish onboarding";
-            setError(message);
-            console.error(error);
+            console.error('Onboarding completion error:', error);
+            
+            // Show friendly error messages
+            let friendlyMessage;
+            if (error?.message === "Min 20 chars") {
+                friendlyMessage = "Please write at least 20 characters about yourself to help others get to know you better.";
+            } else if (error?.message === "Not signed in") {
+                friendlyMessage = "You appear to be signed out. Please refresh the page and try again.";
+            } else if (error?.message?.includes("Database error")) {
+                friendlyMessage = "We're having trouble saving your profile. Please check your connection and try again.";
+            } else {
+                friendlyMessage = "Something went wrong while completing your profile. Please try again in a moment.";
+            }
+            
+            setError(friendlyMessage);
         } finally {
             setLoading(false);
         }

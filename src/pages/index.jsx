@@ -6,6 +6,7 @@ import AuthStart from './AuthStart';
 import AuthCallback from './AuthCallback';
 import ErrorBoundary from '../components/core/ErrorBoundary';
 import DiscoverPage from './Discover'; // Keep eager for first-paint speed
+import Debug from './Debug'; // Debug route for router verification
 
 // Route code-splitting - lazy load infrequent pages
 const Onboarding = lazy(() => import('./Onboarding'));
@@ -75,6 +76,9 @@ export default function AppRoutes() {
             <Route path="auth/callback" element={<AuthCallback />} />
             <Route path="auth/forgot" element={<ForgotPassword />} />
             <Route path="auth/update-password" element={<UpdatePassword />} />
+
+            {/* Debug route for router verification */}
+            <Route path="debug" element={<Debug />} />
 
             {/* Catch-all → redirect to home */}
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -106,7 +106,7 @@ export default function LikesYouPage() {
                         <CardDescription className="mb-4 max-w-md mx-auto">
                             Upgrade to YouDating Plus to see everyone who likes you and match instantly.
                         </CardDescription>
-                        <Button onClick={() => navigate(createPageUrl("Store"))}>Upgrade to Plus</Button>
+                        <Button onClick={() => navigate(createPageUrl("store"))}>Upgrade to Plus</Button>
                     </Card>
                 )}
 

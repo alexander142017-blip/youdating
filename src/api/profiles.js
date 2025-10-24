@@ -1,6 +1,6 @@
-import { supabase } from './supabase';
+import { supabase } from './supabase.js';
 import { getCurrentSessionUser } from './session';
-import { validateUserSession, executeWithErrorHandling } from '../utils/rlsErrorHandler';
+import { validateUserSession, executeWithErrorHandling, explainSupabaseError } from '../utils/rlsErrorHandler.js';
 
 /**
  * Get profile by userId or email.
@@ -22,29 +22,130 @@ export async function getProfile({ userId, email }) {
 }
 
 /**
- * Upsert profile (insert or update) - RLS compliant.
+ * Create or update profile with strict validation and proper error handling
+ * @param {Object} payload - Profile data to save
+ * @returns {Promise<Object>} - Created/updated profile
  */
-export async function upsertProfile(profile) {
-  return executeWithErrorHandling(async () => {
-    // Get current session for RLS compliance
-    const userId = await validateUserSession(supabase);
+export async function upsertProfile(payload) {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('upsertProfile requires a valid payload object');
+  }
 
-    // Ensure user_id is set for RLS and updated_at is current
-    const profileData = {
-      ...profile,
-      user_id: userId,  // REQUIRED for RLS
-      updated_at: new Date().toISOString()
+  return executeWithErrorHandling(async () => {
+    const session = await validateUserSession();
+    const userId = session.user.id;
+    
+    const sanitizedPayload = {
+      ...payload,
+      user_id: userId,
+      updated_at: new Date().toISOString(),
     };
+
+    // Remove undefined values to prevent database errors
+    Object.keys(sanitizedPayload).forEach(key => {
+      if (sanitizedPayload[key] === undefined) {
+        delete sanitizedPayload[key];
+      }
+    });
+
+    console.log(`[upsertProfile] Saving profile for user ${userId}:`, sanitizedPayload);
 
     const { data, error } = await supabase
       .from('profiles')
-      .upsert(profileData, { onConflict: 'user_id' })
-      .select()
-      .maybeSingle();
-    
-    if (error) throw error;
+      .upsert(sanitizedPayload, { 
+        onConflict: 'user_id',
+        count: 'exact'
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('[upsertProfile] Supabase error:', explainSupabaseError(error));
+      throw error;
+    }
+
+    if (!data) {
+      throw new Error('upsertProfile returned no data despite no error');
+    }
+
+    console.log(`[upsertProfile] Successfully saved profile:`, data);
     return data;
-  }, 'profile update');
+  }, 'upsert profile');
+}
+
+/**
+ * Alternative profile save using explicit update-then-insert fallback
+ * Useful for teams preferring explicit operation control over upsert
+ * @param {Object} payload - Profile data to save
+ * @returns {Promise<Object>} - Created/updated profile
+ */
+export async function saveProfile(payload) {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('saveProfile requires a valid payload object');
+  }
+
+  return executeWithErrorHandling(async () => {
+    const session = await validateUserSession();
+    const userId = session.user.id;
+    
+    const sanitizedPayload = {
+      ...payload,
+      user_id: userId,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Remove undefined values
+    Object.keys(sanitizedPayload).forEach(key => {
+      if (sanitizedPayload[key] === undefined) {
+        delete sanitizedPayload[key];
+      }
+    });
+
+    console.log(`[saveProfile] Attempting save for user ${userId}:`, sanitizedPayload);
+
+    // Try update first
+    const { data: updateData, error: updateError } = await supabase
+      .from('profiles')
+      .update(sanitizedPayload)
+      .eq('user_id', userId)
+      .select('*')
+      .single();
+
+    if (!updateError && updateData) {
+      console.log(`[saveProfile] Successfully updated profile:`, updateData);
+      return updateData;
+    }
+
+    console.log(`[saveProfile] Update failed, attempting insert:`, updateError?.message);
+
+    // Fallback to insert with required fields
+    const insertPayload = {
+      ...sanitizedPayload,
+      email: sanitizedPayload.email || session.user.email,
+      created_at: new Date().toISOString(),
+    };
+
+    const { data: insertData, error: insertError } = await supabase
+      .from('profiles')
+      .insert(insertPayload)
+      .select('*')
+      .single();
+
+    if (insertError) {
+      console.error('[saveProfile] Both update and insert failed:', {
+        updateError: explainSupabaseError(updateError),
+        insertError: explainSupabaseError(insertError)
+      });
+      throw insertError;
+    }
+
+    if (!insertData) {
+      throw new Error('saveProfile insert returned no data despite no error');
+    }
+
+    console.log(`[saveProfile] Successfully inserted profile:`, insertData);
+    return insertData;
+  }, 'save profile');
 }
 
 /**

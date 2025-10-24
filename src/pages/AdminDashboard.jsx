@@ -142,9 +142,9 @@ export default function AdminDashboard() {
   
   const updateUserMutation = useMutation({
       mutationFn: async ({userId, data}) => {
-        // TODO: Implement user update using Supabase
-        const { data: result } = await supabase.from('profiles').update(data).eq('user_id', userId).select().maybeSingle();
-        return result;
+        // Use reliable profile save for admin updates
+        const { upsertProfile } = await import('../api/profiles.js');
+        return await upsertProfile({ ...data, user_id: userId });
       },
       onSuccess: (data, variables) => {
           toast.success(`User ${variables.userId} updated.`);

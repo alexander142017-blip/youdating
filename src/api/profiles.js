@@ -3,6 +3,53 @@ import { getCurrentSessionUser } from './session';
 import { validateUserSession, executeWithErrorHandling, explainSupabaseError } from '../utils/rlsErrorHandler.js';
 
 /**
+ * Valid columns for profiles table - used to filter API payloads
+ * Only includes columns that exist in the database schema
+ */
+const VALID_PROFILE_COLUMNS = [
+  'user_id',
+  'email',
+  'full_name',
+  'onboarding_complete',
+  'city',
+  'lat',
+  'lng',
+  'bio',
+  'photos',
+  'created_at'
+];
+
+/**
+ * Sanitize payload to only include valid profile columns
+ * @param {Object} payload - Raw payload object
+ * @returns {Object} - Sanitized payload with only valid columns
+ */
+function sanitizeProfilePayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return {};
+  }
+  
+  const sanitized = {};
+  
+  // Only include valid columns
+  Object.keys(payload).forEach(key => {
+    if (VALID_PROFILE_COLUMNS.includes(key)) {
+      // Remove undefined values to prevent database errors
+      if (payload[key] !== undefined) {
+        sanitized[key] = payload[key];
+      }
+    } else {
+      console.warn(`[sanitizeProfilePayload] Ignoring invalid column: ${key}`);
+    }
+  });
+  
+  return sanitized;
+}
+
+// Example usage: sanitizeProfilePayload({id: 1, user_id: 'uuid', bio: 'test', invalid_field: 'ignored'})
+// Returns: {user_id: 'uuid', bio: 'test'} (id and invalid_field are filtered out)
+
+/**
  * Get profile by userId or email.
  */
 export async function getProfile({ userId, email }) {
@@ -35,41 +82,39 @@ export async function upsertProfile(payload) {
     const session = await validateUserSession();
     const userId = session.user.id;
     
-    const sanitizedPayload = {
+    // Sanitize payload to only include valid columns and remove undefined values
+    const sanitizedPayload = sanitizeProfilePayload({
       ...payload,
       user_id: userId,
-      updated_at: new Date().toISOString(),
-    };
-
-    // Remove undefined values to prevent database errors
-    Object.keys(sanitizedPayload).forEach(key => {
-      if (sanitizedPayload[key] === undefined) {
-        delete sanitizedPayload[key];
-      }
     });
+
+    if (Object.keys(sanitizedPayload).length === 0) {
+      throw new Error('upsertProfile payload contains no valid columns after sanitization');
+    }
+
+    // Add required validation
+    if (!sanitizedPayload.user_id) throw new Error('Missing user_id in profile payload');
+    if (!Array.isArray(sanitizedPayload.photos)) sanitizedPayload.photos = [];
 
     console.log(`[upsertProfile] Saving profile for user ${userId}:`, sanitizedPayload);
 
     const { data, error } = await supabase
       .from('profiles')
-      .upsert(sanitizedPayload, { 
-        onConflict: 'user_id',
-        count: 'exact'
-      })
-      .select('*')
-      .single();
+      .upsert([sanitizedPayload], { onConflict: 'user_id', ignoreDuplicates: false })
+      .select();
 
     if (error) {
       console.error('[upsertProfile] Supabase error:', explainSupabaseError(error));
       throw error;
     }
 
-    if (!data) {
+    if (!data || data.length === 0) {
       throw new Error('upsertProfile returned no data despite no error');
     }
 
-    console.log(`[upsertProfile] Successfully saved profile:`, data);
-    return data;
+    const profile = data[0]; // Get first item from array response
+    console.log(`[upsertProfile] Successfully saved profile:`, profile);
+    return profile;
   }, 'upsert profile');
 }
 
@@ -88,18 +133,19 @@ export async function saveProfile(payload) {
     const session = await validateUserSession();
     const userId = session.user.id;
     
-    const sanitizedPayload = {
+    // Sanitize payload to only include valid columns and remove undefined values
+    const sanitizedPayload = sanitizeProfilePayload({
       ...payload,
       user_id: userId,
-      updated_at: new Date().toISOString(),
-    };
-
-    // Remove undefined values
-    Object.keys(sanitizedPayload).forEach(key => {
-      if (sanitizedPayload[key] === undefined) {
-        delete sanitizedPayload[key];
-      }
     });
+
+    if (Object.keys(sanitizedPayload).length === 0) {
+      throw new Error('saveProfile payload contains no valid columns after sanitization');
+    }
+
+    // Add required validation
+    if (!sanitizedPayload.user_id) throw new Error('Missing user_id in profile payload');
+    if (!Array.isArray(sanitizedPayload.photos)) sanitizedPayload.photos = [];
 
     console.log(`[saveProfile] Attempting save for user ${userId}:`, sanitizedPayload);
 
@@ -119,11 +165,11 @@ export async function saveProfile(payload) {
     console.log(`[saveProfile] Update failed, attempting insert:`, updateError?.message);
 
     // Fallback to insert with required fields
-    const insertPayload = {
+    const insertPayload = sanitizeProfilePayload({
       ...sanitizedPayload,
       email: sanitizedPayload.email || session.user.email,
       created_at: new Date().toISOString(),
-    };
+    });
 
     const { data: insertData, error: insertError } = await supabase
       .from('profiles')

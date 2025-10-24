@@ -92,3 +92,16 @@ export async function executeWithErrorHandling(operation, operationName = 'opera
     throw handleSupabaseError(error, operationName);
   }
 }
+
+/**
+ * Get detailed error information from Supabase errors
+ * @param {Error} error - Supabase error object
+ * @returns {string} - Formatted error details
+ */
+export function explainSupabaseError(error) {
+  if (!error) return 'Unknown error';
+  const { code, message, details, hint } = error;
+  return `[${code || 'ERR'}] ${message || 'No message'}
+  ${details ? `details: ${details}` : ''}
+  ${hint ? `hint: ${hint}` : ''}`;
+}

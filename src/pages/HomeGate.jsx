@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import { supabase } from '../api/supabase';
+import { upsertProfile } from '@/api/profiles';
 
 /**
  * Ensure a profile exists for the authenticated user
@@ -33,21 +34,12 @@ async function ensureProfile(session) {
 
     console.log('[HOMEGATE] No profile found, creating minimal profile for user:', uid);
     
-    const { data: inserted, error: insErr } = await supabase
-      .from('profiles')
-      .insert([{
-        user_id: uid,
-        email,
-        onboarding_complete: false,
-        full_name: session.user.user_metadata?.full_name || null
-      }])
-      .select()
-      .single();
-      
-    if (insErr) {
-      console.error('[PROFILE ERROR]', insErr?.message || insErr);
-      throw insErr;
-    }
+    const inserted = await upsertProfile({
+      user_id: uid,
+      email,
+      onboarding_complete: false,
+      full_name: session.user.user_metadata?.full_name || null
+    });
     
     console.log('[HOMEGATE] Created new profile:', inserted);
     return inserted;

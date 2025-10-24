@@ -1,0 +1,15 @@
+[project]
+org_id = "your-org-id"
+project_id = "your-project-id"
+
+[auth]
+enabled = true
+
+[functions]
+enabled = true
+
+[storage]
+enabled = true
+buckets = [
+  { name = "profile-photos", public = false }
+]

@@ -1,0 +1,14 @@
+{
+  "tasks": {
+    "start": "deno run --allow-all --watch=static/,routes/ dev.ts",
+    "dev": "deno run --allow-all --watch=static/,routes/ dev.ts"
+  },
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2"
+  },
+  "compilerOptions": {
+    "allowJs": true,
+    "lib": ["deno.worker"],
+    "strict": false
+  }
+}

@@ -16,49 +16,49 @@ async function ensureProfile(session) {
   const uid = session.user.id;
   const email = session.user.email ?? null;
   
-  console.log('[ONBOARDING] Checking for existing profile for user:', uid);
-  
-  const { data: existing, error: selErr } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('user_id', uid)
-    .maybeSingle();
+  try {
+    console.log('[ONBOARDING] Checking for existing profile for user:', uid);
     
-  if (selErr) {
-    console.error('[ONBOARDING] Error checking existing profile:', selErr);
-    throw selErr;
-  }
-  
-  if (existing) {
-    console.log('[ONBOARDING] Found existing profile:', existing);
-    return existing;
-  }
+    const { data: existing, error: selErr } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', uid)
+      .maybeSingle();
+      
+    if (selErr) {
+      console.error('[PROFILE ERROR]', selErr?.message || selErr);
+      throw selErr;
+    }
+    
+    if (existing) {
+      console.log('[ONBOARDING] Found existing profile:', existing);
+      return existing;
+    }
 
-  console.log('[ONBOARDING] No profile found, creating minimal profile for user:', uid);
-  
-  const { data: inserted, error: insErr } = await supabase
-    .from('profiles')
-    .insert([{
-      user_id: uid,
-      email,
-      onboarding_complete: false,
-      full_name: null,
-      city: null,
-      lat: null,
-      lng: null,
-      bio: null,
-      created_at: new Date().toISOString()
-    }])
-    .select()
-    .single();
+    console.log('[ONBOARDING] No profile found, creating minimal profile for user:', uid);
     
-  if (insErr) {
-    console.error('[ONBOARDING] Error creating profile:', insErr);
-    throw insErr;
+    const { data: inserted, error: insErr } = await supabase
+      .from('profiles')
+      .insert([{
+        user_id: uid,
+        email,
+        onboarding_complete: false,
+        full_name: session.user.user_metadata?.full_name || null
+      }])
+      .select()
+      .single();
+      
+    if (insErr) {
+      console.error('[PROFILE ERROR]', insErr?.message || insErr);
+      throw insErr;
+    }
+    
+    console.log('[ONBOARDING] Created new profile:', inserted);
+    return inserted;
+  } catch (error) {
+    console.error('[PROFILE ERROR]', error?.message || error);
+    throw error;
   }
-  
-  console.log('[ONBOARDING] Created new profile:', inserted);
-  return inserted;
 }
 import { 
   Loader2, 
@@ -116,10 +116,6 @@ export default function OnboardingPage() {
     const [codeError, setCodeError] = useState("");
     const [, setPhoneSent] = useState(false);
 
-    useEffect(() => {
-        checkAuthStatus();
-    }, [checkAuthStatus]);
-
     const checkAuthStatus = useCallback(async () => {
         try {
             const user = await getCurrentSessionUser();
@@ -131,6 +127,10 @@ export default function OnboardingPage() {
             navigate(createPageUrl("auth"));
         }
     }, [navigate]);
+
+    useEffect(() => {
+        checkAuthStatus();
+    }, [checkAuthStatus]);
 
     const handleInputChange = (field, value) => {
         setFormData(prev => ({
@@ -578,18 +578,33 @@ export default function OnboardingPage() {
             await ensureProfile(session);
             
             // Update profile with bio and completion status
+            const updateData = {
+                bio: aboutMe.trim(), 
+                onboarding_complete: true
+            };
+            
+            // Include location data if available (graceful handling if missing)
+            if (coordinates?.lat && coordinates?.lng) {
+                updateData.lat = coordinates.lat;
+                updateData.lng = coordinates.lng;
+            }
+            if (detectedLocation?.city) {
+                updateData.city = detectedLocation.city;
+            }
+            
+            console.log('[ONBOARDING] Updating profile with data:', updateData);
+            
             const { error } = await supabase
                 .from('profiles')
-                .update({ 
-                    bio: aboutMe.trim(), 
-                    onboarding_complete: true 
-                })
+                .update(updateData)
                 .eq('user_id', userId);
             
             if (error) {
-                console.error('Profile update error:', error);
+                console.error('[ONBOARDING] Profile update error:', error);
                 throw new Error(`Database error: ${error.message}`);
             }
+            
+            console.log('[ONBOARDING COMPLETE] Profile updated successfully for user:', userId);
             
             // Redirect to /discover on success
             navigate("/discover");

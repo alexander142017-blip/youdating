@@ -8,7 +8,7 @@ import { validateUserSession, executeWithErrorHandling } from '../utils/rlsError
 export async function getProfile({ userId, email }) {
   return executeWithErrorHandling(async () => {
     if (userId) {
-      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+      const { data, error } = await supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle();
       if (error) throw error;
       return data;
     }
@@ -54,7 +54,7 @@ export async function markOnboardingComplete(userId) {
   const { data, error } = await supabase
     .from('profiles')
     .update({ profile_completed: true })
-    .eq('id', userId)
+    .eq('user_id', userId)
     .select()
     .maybeSingle();
   if (error) throw error;
@@ -73,7 +73,7 @@ export async function completeOnboarding(onboardingData = {}) {
 
     // Prepare onboarding completion data
     const completionData = {
-      id: currentUser.id,
+      user_id: currentUser.id,
       email: currentUser.email,
       onboarding_complete: true,
       profile_completed: true,
@@ -104,7 +104,7 @@ export async function getProfileById(userId) {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', userId)
+      .eq('user_id', userId)
       .maybeSingle();
 
     if (error) throw error;
@@ -130,7 +130,7 @@ export async function updateProfilePhoto(photoUrl) {
     }
 
     const updatedProfile = await upsertProfile({
-      id: currentUser.id,
+      user_id: currentUser.id,
       photo_url: photoUrl,
       has_photo: true
     });
@@ -181,7 +181,7 @@ export async function updatePreferences(preferences) {
     }
 
     const updatedProfile = await upsertProfile({
-      id: currentUser.id,
+      user_id: currentUser.id,
       ...filteredPreferences
     });
 
@@ -215,7 +215,7 @@ export async function searchProfiles(filters = {}) {
       .select('*')
       .eq('show_on_discover', true)
       .eq('onboarding_complete', true)
-      .neq('id', currentUser.id); // Exclude current user
+      .neq('user_id', currentUser.id); // Exclude current user
 
     // Add age filters if age is available
     if (ageMin) {

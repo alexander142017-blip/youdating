@@ -1,7 +1,11 @@
 /**
  * Twilio SMS Verification Start - Vercel API Route
  * 
- * Starts SMS verification for authenticated user's phone number
+ * Starts SMS verification for authent    const { data: profile } = await supabase
+      .from('profiles')
+      .select('updated_at, verify_request_id')
+      .eq('user_id', user.id)
+      .single();d user's phone number
  * POST /api/phone/start
  * 
  * Required Environment Variables:
@@ -120,8 +124,8 @@ export default async function handler(req, res) {
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const { data: recentAttempts, error: attemptError } = await admin
       .from('profiles')
-      .select('id')
-      .eq('id', user.id)
+      .select('user_id')
+      .eq('user_id', user.id)
       .gte('updated_at', oneHourAgo.toISOString());
       
     if (!attemptError && recentAttempts && recentAttempts.length > 5) {
@@ -143,7 +147,7 @@ export default async function handler(req, res) {
         verify_request_id: 'twilio', // Placeholder since Twilio doesn't need stored request_id
         updated_at: new Date().toISOString()
       })
-      .eq('id', user.id);
+      .eq('user_id', user.id);
 
     if (updateError) {
       console.error('Profile update error:', updateError);

@@ -12,49 +12,49 @@ async function ensureProfile(session) {
   const uid = session.user.id;
   const email = session.user.email ?? null;
   
-  console.log('[HOMEGATE] Checking for existing profile for user:', uid);
-  
-  const { data: existing, error: selErr } = await supabase
-    .from('profiles')
-    .select('user_id,onboarding_complete')
-    .eq('user_id', uid)
-    .maybeSingle();
+  try {
+    console.log('[HOMEGATE] Checking for existing profile for user:', uid);
     
-  if (selErr) {
-    console.error('[HOMEGATE] Error checking existing profile:', selErr);
-    throw selErr;
-  }
-  
-  if (existing) {
-    console.log('[HOMEGATE] Found existing profile:', existing);
-    return existing;
-  }
+    const { data: existing, error: selErr } = await supabase
+      .from('profiles')
+      .select('user_id,onboarding_complete')
+      .eq('user_id', uid)
+      .maybeSingle();
+      
+    if (selErr) {
+      console.error('[PROFILE ERROR]', selErr?.message || selErr);
+      throw selErr;
+    }
+    
+    if (existing) {
+      console.log('[HOMEGATE] Found existing profile:', existing);
+      return existing;
+    }
 
-  console.log('[HOMEGATE] No profile found, creating minimal profile for user:', uid);
-  
-  const { data: inserted, error: insErr } = await supabase
-    .from('profiles')
-    .insert([{
-      user_id: uid,
-      email,
-      onboarding_complete: false,
-      full_name: null,
-      city: null,
-      lat: null,
-      lng: null,
-      bio: null,
-      created_at: new Date().toISOString()
-    }])
-    .select()
-    .single();
+    console.log('[HOMEGATE] No profile found, creating minimal profile for user:', uid);
     
-  if (insErr) {
-    console.error('[HOMEGATE] Error creating profile:', insErr);
-    throw insErr;
+    const { data: inserted, error: insErr } = await supabase
+      .from('profiles')
+      .insert([{
+        user_id: uid,
+        email,
+        onboarding_complete: false,
+        full_name: session.user.user_metadata?.full_name || null
+      }])
+      .select()
+      .single();
+      
+    if (insErr) {
+      console.error('[PROFILE ERROR]', insErr?.message || insErr);
+      throw insErr;
+    }
+    
+    console.log('[HOMEGATE] Created new profile:', inserted);
+    return inserted;
+  } catch (error) {
+    console.error('[PROFILE ERROR]', error?.message || error);
+    throw error;
   }
-  
-  console.log('[HOMEGATE] Created new profile:', inserted);
-  return inserted;
 }
 
 export default function HomeGate({ children }) {

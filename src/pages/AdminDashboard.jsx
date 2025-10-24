@@ -143,7 +143,7 @@ export default function AdminDashboard() {
   const updateUserMutation = useMutation({
       mutationFn: async ({userId, data}) => {
         // TODO: Implement user update using Supabase
-        const { data: result } = await supabase.from('profiles').update(data).eq('id', userId).select().maybeSingle();
+        const { data: result } = await supabase.from('profiles').update(data).eq('user_id', userId).select().maybeSingle();
         return result;
       },
       onSuccess: (data, variables) => {
@@ -156,7 +156,7 @@ export default function AdminDashboard() {
   const deleteUserMutation = useMutation({
       mutationFn: async (userId) => {
         // TODO: Implement user deletion using Supabase
-        await supabase.from('profiles').delete().eq('id', userId);
+        await supabase.from('profiles').delete().eq('user_id', userId);
       },
       onSuccess: () => {
           toast.success("User has been deleted.");

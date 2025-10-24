@@ -4,6 +4,8 @@ import PropTypes from 'prop-types';
 import { supabase } from '../api/supabase';
 import { upsertProfile } from '@/api/profiles';
 
+import { getProfile } from '@/api/profiles';
+
 /**
  * Ensure a profile exists for the authenticated user
  * @param {Object} session - Supabase session object
@@ -16,16 +18,7 @@ async function ensureProfile(session) {
   try {
     console.log('[HOMEGATE] Checking for existing profile for user:', uid);
     
-    const { data: existing, error: selErr } = await supabase
-      .from('profiles')
-      .select('user_id,onboarding_complete')
-      .eq('user_id', uid)
-      .maybeSingle();
-      
-    if (selErr) {
-      console.error('[PROFILE ERROR]', selErr?.message || selErr);
-      throw selErr;
-    }
+    const existing = await getProfile(uid);
     
     if (existing) {
       console.log('[HOMEGATE] Found existing profile:', existing);
@@ -38,7 +31,8 @@ async function ensureProfile(session) {
       user_id: uid,
       email,
       onboarding_complete: false,
-      full_name: session.user.user_metadata?.full_name || null
+      full_name: session.user.user_metadata?.full_name || null,
+      photos: []
     });
     
     console.log('[HOMEGATE] Created new profile:', inserted);

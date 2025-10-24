@@ -30,6 +30,7 @@ const PHONE_VERIFICATION_REQUIRED = import.meta.env.VITE_REQUIRE_PHONE_VERIFICAT
 const TOTAL_STEPS = PHONE_VERIFICATION_REQUIRED ? 7 : 5;
 
 export default function OnboardingPage() {
+    console.log('[ONBOARDING] Component rendering');
     const navigate = useNavigate();
     const [currentStep, setCurrentStep] = useState(1);
     const [loading, setLoading] = useState(false);

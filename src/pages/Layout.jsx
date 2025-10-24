@@ -1,6 +1,6 @@
 
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation, Outlet } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { 
@@ -54,6 +54,11 @@ const navigationItems = [
 export default function Layout() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Global path logging for production debugging
+  useEffect(() => {
+    console.log('[LAYOUT] Current route:', location.pathname, location.search);
+  }, [location]);
 
   // We don't need to use currentUser here since HomeGate handles auth,
   // but we keep the query for potential future use

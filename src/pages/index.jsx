@@ -29,46 +29,130 @@ export default function AppRoutes() {
           <Routes>
             {/* Root route wrapped in Layout */}
             <Route path="/" element={<Layout />}>
-              <Route index element={<DiscoverPage />} />
+              <Route index element={
+                <ErrorBoundary>
+                  <DiscoverPage />
+                </ErrorBoundary>
+              } />
               
               {/* Discover routes */}
-              <Route path="discover" element={<DiscoverPage />} />
-              <Route path="Discover" element={<DiscoverPage />} />
+              <Route path="discover" element={
+                <ErrorBoundary>
+                  <DiscoverPage />
+                </ErrorBoundary>
+              } />
+              <Route path="Discover" element={
+                <ErrorBoundary>
+                  <DiscoverPage />
+                </ErrorBoundary>
+              } />
 
               {/* Onboarding routes */}
-              <Route path="onboarding" element={<Onboarding />} />
-              <Route path="Onboarding" element={<Onboarding />} />
+              <Route path="onboarding" element={
+                <ErrorBoundary>
+                  <Onboarding />
+                </ErrorBoundary>
+              } />
+              <Route path="Onboarding" element={
+                <ErrorBoundary>
+                  <Onboarding />
+                </ErrorBoundary>
+              } />
 
               {/* Profile routes */}
-              <Route path="profile" element={<ProfilePage />} />
-              <Route path="Profile" element={<ProfilePage />} />
+              <Route path="profile" element={
+                <ErrorBoundary>
+                  <ProfilePage />
+                </ErrorBoundary>
+              } />
+              <Route path="Profile" element={
+                <ErrorBoundary>
+                  <ProfilePage />
+                </ErrorBoundary>
+              } />
 
-              <Route path="edit-profile" element={<EditProfile />} />
-              <Route path="EditProfile" element={<EditProfile />} />
+              <Route path="edit-profile" element={
+                <ErrorBoundary>
+                  <EditProfile />
+                </ErrorBoundary>
+              } />
+              <Route path="EditProfile" element={
+                <ErrorBoundary>
+                  <EditProfile />
+                </ErrorBoundary>
+              } />
 
               {/* Messages routes */}
-              <Route path="messages" element={<MessagesPage />} />
-              <Route path="Messages" element={<MessagesPage />} />
+              <Route path="messages" element={
+                <ErrorBoundary>
+                  <MessagesPage />
+                </ErrorBoundary>
+              } />
+              <Route path="Messages" element={
+                <ErrorBoundary>
+                  <MessagesPage />
+                </ErrorBoundary>
+              } />
 
               {/* Matches routes */}
-              <Route path="matches" element={<MatchesPage />} />
-              <Route path="Matches" element={<MatchesPage />} />
+              <Route path="matches" element={
+                <ErrorBoundary>
+                  <MatchesPage />
+                </ErrorBoundary>
+              } />
+              <Route path="Matches" element={
+                <ErrorBoundary>
+                  <MatchesPage />
+                </ErrorBoundary>
+              } />
 
               {/* Store routes */}
-              <Route path="store" element={<StorePage />} />
-              <Route path="Store" element={<StorePage />} />
+              <Route path="store" element={
+                <ErrorBoundary>
+                  <StorePage />
+                </ErrorBoundary>
+              } />
+              <Route path="Store" element={
+                <ErrorBoundary>
+                  <StorePage />
+                </ErrorBoundary>
+              } />
 
               {/* Likes You routes */}
-              <Route path="likes-you" element={<LikesYou />} />
-              <Route path="LikesYou" element={<LikesYou />} />
+              <Route path="likes-you" element={
+                <ErrorBoundary>
+                  <LikesYou />
+                </ErrorBoundary>
+              } />
+              <Route path="LikesYou" element={
+                <ErrorBoundary>
+                  <LikesYou />
+                </ErrorBoundary>
+              } />
 
               {/* Admin routes */}
-              <Route path="admin" element={<AdminDashboard />} />
-              <Route path="AdminDashboard" element={<AdminDashboard />} />
+              <Route path="admin" element={
+                <ErrorBoundary>
+                  <AdminDashboard />
+                </ErrorBoundary>
+              } />
+              <Route path="AdminDashboard" element={
+                <ErrorBoundary>
+                  <AdminDashboard />
+                </ErrorBoundary>
+              } />
 
               {/* Analytics routes */}
-              <Route path="analytics" element={<AnalyticsDashboard />} />
-              <Route path="AnalyticsDashboard" element={<AnalyticsDashboard />} />
+              <Route path="analytics" element={
+                <ErrorBoundary>
+                  <AnalyticsDashboard />
+                </ErrorBoundary>
+              } />
+              <Route path="AnalyticsDashboard" element={
+                <ErrorBoundary>
+                  <AnalyticsDashboard />
+                </ErrorBoundary>
+              } />
             </Route>
 
             {/* Auth routes without Layout */}

@@ -158,23 +158,14 @@ const OnboardingPage = () => {
 
     async function savePatch(patch) {
         const user = await getCurrentUser();
-        await upsertProfile({
+        // Only send changed fields plus required identifiers
+        const payload = {
             user_id: user.id,
             email: user.email ?? null,
-            full_name: patch.full_name ?? formData.full_name ?? null,
-            city: patch.city ?? formData.city ?? null,
-            lat: patch.lat ?? formData.lat ?? null,
-            lng: patch.lng ?? formData.lng ?? null,
-            bio: patch.bio ?? formData.bio ?? null,
-            photos: Array.isArray(patch.photos) ? patch.photos
-                  : Array.isArray(formData.photos) ? formData.photos : [],
-            gender: patch.gender ?? formData.gender ?? null,
-            looking_for: patch.looking_for ?? formData.looking_for ?? null,
-            date_of_birth: patch.date_of_birth ?? formData.date_of_birth ?? null,
-            phone: patch.phone ?? formData.phone ?? null,
-            phone_verified: patch.phone_verified ?? formData.phone_verified ?? false,
             onboarding_complete: false,
-        });
+            ...patch
+        };
+        await upsertProfile(payload);
         setFormData(prev => ({ ...prev, ...patch }));
     }
 

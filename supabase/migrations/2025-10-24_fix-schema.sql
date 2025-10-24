@@ -6,7 +6,8 @@ drop table if exists public.profiles cascade;
 -- PROFILES TABLE
 -- ======================================
 create table if not exists public.profiles (
-  user_id uuid primary key references auth.users(id) on delete cascade,
+  id bigserial primary key,
+  user_id uuid unique not null references auth.users(id) on delete cascade,
   email text,
   full_name text,
   onboarding_complete boolean default false,
@@ -14,12 +15,12 @@ create table if not exists public.profiles (
   lat numeric,
   lng numeric,
   bio text,
-  photos text[] default '{}', -- Array of photo URLs
+  photos text[] default '{}'::text[],
   created_at timestamptz default now()
 );
 
--- Add explicit unique constraint on user_id (for clarity, even though primary key already ensures uniqueness)
-alter table public.profiles add constraint if not exists profiles_user_id_unique unique (user_id);
+-- Add unique constraint on user_id (profiles_user_id_key)
+alter table public.profiles add constraint if not exists profiles_user_id_key unique (user_id);
 
 -- Enable RLS
 alter table public.profiles enable row level security;
@@ -37,9 +38,9 @@ begin
   end if;
 
   if not exists (
-    select 1 from pg_policies where schemaname='public' and tablename='profiles' and policyname='Users can insert/update their own profile'
+    select 1 from pg_policies where schemaname='public' and tablename='profiles' and policyname='profiles_self_all'
   ) then
-    create policy "Users can insert/update their own profile"
+    create policy "profiles_self_all"
     on public.profiles
     for all
     to authenticated

@@ -4,34 +4,19 @@ import { validateUserSession, executeWithErrorHandling, explainSupabaseError } f
 
 /**
  * Valid columns for profiles table - used to filter API payloads
+ * Only includes columns that exist in the database schema
  */
 const VALID_PROFILE_COLUMNS = [
   'user_id',
-  'email', 
+  'email',
   'full_name',
   'onboarding_complete',
   'city',
   'lat',
-  'lng', 
+  'lng',
   'bio',
   'photos',
-  'created_at',
-  'updated_at',
-  // Additional profile fields that may exist
-  'profile_completed',
-  'onboarding_completed_at',
-  'photo_url',
-  'has_photo',
-  'age',
-  'show_on_discover',
-  'show_distance',
-  'show_age',
-  'discovery_age_min',
-  'discovery_age_max',
-  'discovery_max_distance',
-  'notification_matches',
-  'notification_messages', 
-  'notification_likes'
+  'created_at'
 ];
 
 /**
@@ -101,35 +86,35 @@ export async function upsertProfile(payload) {
     const sanitizedPayload = sanitizeProfilePayload({
       ...payload,
       user_id: userId,
-      updated_at: new Date().toISOString(),
     });
 
     if (Object.keys(sanitizedPayload).length === 0) {
       throw new Error('upsertProfile payload contains no valid columns after sanitization');
     }
 
+    // Add required validation
+    if (!sanitizedPayload.user_id) throw new Error('Missing user_id in profile payload');
+    if (!Array.isArray(sanitizedPayload.photos)) sanitizedPayload.photos = [];
+
     console.log(`[upsertProfile] Saving profile for user ${userId}:`, sanitizedPayload);
 
     const { data, error } = await supabase
       .from('profiles')
-      .upsert(sanitizedPayload, { 
-        onConflict: 'user_id',
-        count: 'exact'
-      })
-      .select('*')
-      .single();
+      .upsert([sanitizedPayload], { onConflict: 'user_id', ignoreDuplicates: false })
+      .select();
 
     if (error) {
       console.error('[upsertProfile] Supabase error:', explainSupabaseError(error));
       throw error;
     }
 
-    if (!data) {
+    if (!data || data.length === 0) {
       throw new Error('upsertProfile returned no data despite no error');
     }
 
-    console.log(`[upsertProfile] Successfully saved profile:`, data);
-    return data;
+    const profile = data[0]; // Get first item from array response
+    console.log(`[upsertProfile] Successfully saved profile:`, profile);
+    return profile;
   }, 'upsert profile');
 }
 
@@ -152,12 +137,15 @@ export async function saveProfile(payload) {
     const sanitizedPayload = sanitizeProfilePayload({
       ...payload,
       user_id: userId,
-      updated_at: new Date().toISOString(),
     });
 
     if (Object.keys(sanitizedPayload).length === 0) {
       throw new Error('saveProfile payload contains no valid columns after sanitization');
     }
+
+    // Add required validation
+    if (!sanitizedPayload.user_id) throw new Error('Missing user_id in profile payload');
+    if (!Array.isArray(sanitizedPayload.photos)) sanitizedPayload.photos = [];
 
     console.log(`[saveProfile] Attempting save for user ${userId}:`, sanitizedPayload);
 

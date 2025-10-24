@@ -3,6 +3,60 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import { supabase } from '../api/supabase';
 
+/**
+ * Ensure a profile exists for the authenticated user
+ * @param {Object} session - Supabase session object
+ * @returns {Object} - Profile data (existing or newly created)
+ */
+async function ensureProfile(session) {
+  const uid = session.user.id;
+  const email = session.user.email ?? null;
+  
+  console.log('[HOMEGATE] Checking for existing profile for user:', uid);
+  
+  const { data: existing, error: selErr } = await supabase
+    .from('profiles')
+    .select('user_id,onboarding_complete')
+    .eq('user_id', uid)
+    .maybeSingle();
+    
+  if (selErr) {
+    console.error('[HOMEGATE] Error checking existing profile:', selErr);
+    throw selErr;
+  }
+  
+  if (existing) {
+    console.log('[HOMEGATE] Found existing profile:', existing);
+    return existing;
+  }
+
+  console.log('[HOMEGATE] No profile found, creating minimal profile for user:', uid);
+  
+  const { data: inserted, error: insErr } = await supabase
+    .from('profiles')
+    .insert([{
+      user_id: uid,
+      email,
+      onboarding_complete: false,
+      full_name: null,
+      city: null,
+      lat: null,
+      lng: null,
+      bio: null,
+      created_at: new Date().toISOString()
+    }])
+    .select()
+    .single();
+    
+  if (insErr) {
+    console.error('[HOMEGATE] Error creating profile:', insErr);
+    throw insErr;
+  }
+  
+  console.log('[HOMEGATE] Created new profile:', inserted);
+  return inserted;
+}
+
 export default function HomeGate({ children }) {
   const nav = useNavigate();
   const loc = useLocation();
@@ -34,22 +88,11 @@ export default function HomeGate({ children }) {
           return;
         }
 
-        // Load current user's profile
-        const uid = session.user.id;
-        console.log('[HOMEGATE] Loading profile for user:', uid);
+        // Ensure profile exists for authenticated user
+        console.log('[HOMEGATE] User authenticated, ensuring profile exists');
+        const prof = await ensureProfile(session);
         
-        const { data: prof, error: profileError } = await supabase
-          .from('profiles')
-          .select('user_id,onboarding_complete')
-          .eq('user_id', uid)
-          .maybeSingle();
-          
-        if (profileError) {
-          console.error('[HOMEGATE] Profile fetch error:', profileError);
-          throw profileError;
-        }
-        
-        console.log('[HOMEGATE] Profile data:', prof);
+        console.log('[HOMEGATE] Profile ensured:', prof);
         if (cancelled) return;
 
         setLoading(false);

@@ -14,6 +14,7 @@ create table if not exists public.profiles (
   lat numeric,
   lng numeric,
   bio text,
+  photos text[] default '{}', -- Array of photo URLs
   created_at timestamptz default now()
 );
 

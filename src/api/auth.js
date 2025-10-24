@@ -1,27 +1,33 @@
 import { supabase } from './supabase';
 
 /**
- * Return the current authenticated user profile.
- * Combines Supabase auth user and the profiles row if present.
+ * Returns the current authed user (or null).
+ * Safe for both client and server components.
  */
-export async function getCurrentUser() {
-  const { data: { user } = {}, error: authErr } = await supabase.auth.getUser();
-  if (authErr) {
-    // don't throw here — allow callers to handle null user
-    console.warn('supabase.auth.getUser error', authErr);
+export async function getCurrentSessionUser() {
+  const { data, error } = await supabase.auth.getUser();
+  if (error) {
+    console.error('[auth] getUser error:', error);
+    return null;
   }
-  if (!user) return null;
+  return data?.user ?? null;
+}
 
-  const { data: profile, error: profileErr } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('user_id', user.id)
-    .maybeSingle();
+/**
+ * Ensures a user is signed in, throws otherwise.
+ */
+export async function requireAuthedUser() {
+  const user = await getCurrentSessionUser();
+  if (!user) throw new Error('Not authenticated');
+  return user;
+}
 
-  if (profileErr) console.warn('failed to load profile', profileErr);
-
-  return {
-    ...user,
-    ...(profile || {})
-  };
+/**
+ * Subscribe to auth changes. Returns an unsubscribe function.
+ */
+export function onAuthChange(callback) {
+  const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    callback(session?.user ?? null);
+  });
+  return () => sub?.subscription?.unsubscribe();
 }

@@ -2,8 +2,8 @@
 /* eslint react/prop-types: 0 */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase } from '../api/supabase';
-import { getProfile, upsertProfile } from '../api/profiles';
+import { getCurrentSessionUser } from '../api/auth';
+import { upsertProfile } from '../api/profiles';
 import { uploadProfilePhoto } from '../api/storage';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -93,7 +93,24 @@ const TOTAL_STEPS = PHONE_VERIFICATION_REQUIRED ? 7 : 5;
 const OnboardingPage = () => {
     console.log('[ONBOARDING] Component rendering');
     const navigate = useNavigate();
+    const [user, setUser] = useState(null);
+    const [loadingUser, setLoadingUser] = useState(true);
     const [currentStep, setCurrentStep] = useState(1);
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            const u = await getCurrentSessionUser();
+            if (mounted) {
+                setUser(u);
+                setLoadingUser(false);
+            }
+        })();
+        return () => { mounted = false; };
+    }, []);
+
+    if (loadingUser) return <div className="p-6">Loading...</div>;
+    if (!user) return <div className="p-6">Please sign in to continue.</div>;
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [locationLoading, setLocationLoading] = useState(false);
@@ -553,36 +570,30 @@ const OnboardingPage = () => {
     };
 
     async function finishOnboarding(formState) {
-        const user = await getCurrentUser();
-
-        // Optional: merge existing photos in case user already had some
-        let existing = null;
-        try {
-            existing = await getProfile(user.id);
-        } catch (e) {
-            console.warn('[Onboarding] getProfile failed (will still upsert):', e);
+        const authed = user ?? (await getCurrentSessionUser());
+        if (!authed) {
+            console.warn('[onboarding] no user; redirect to sign-in');
+            navigate('/auth');
+            return;
         }
 
         const photos = Array.isArray(formState.photos) ? formState.photos : [];
-        const mergedPhotos = Array.isArray(existing?.photos)
-            ? Array.from(new Set([...(existing.photos), ...photos]))
-            : photos;
 
         const payload = {
-            user_id: user.id,
-            email: user.email ?? null,
+            user_id: authed.id,        // REQUIRED
+            email: authed.email ?? null,
             full_name: formState.full_name ?? null,
+            onboarding_complete: true,
             city: formState.city ?? null,
             lat: formState.lat ?? null,
             lng: formState.lng ?? null,
             bio: formState.bio ?? null,
-            photos: mergedPhotos,
-            onboarding_complete: true,
-            gender: formState.gender,
-            looking_for: formState.looking_for,
-            date_of_birth: formState.date_of_birth,
-            phone: formState.phone,
-            phone_verified: formState.phone_verified
+            photos: photos,
+            gender: formState.gender ?? null,
+            looking_for: formState.looking_for ?? null,
+            date_of_birth: formState.date_of_birth ?? null,
+            phone: formState.phone ?? null,
+            phone_verified: formState.phone_verified ?? false
         };
 
         console.log('[Onboarding Finish] payload', payload);

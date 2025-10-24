@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { User, Edit, Settings, Camera, MapPin, CheckCircle, Loader2, Target, AlertCircle } from "lucide-react";
-import { getCurrentUser } from "../api/auth";
-import { getProfile, upsertProfile } from "../api/profiles";
+import { getCurrentSessionUser } from "../api/auth";
+import { upsertProfile } from "../api/profiles";
 import { saveCoordsToProfile } from "../utils/location";
 
 export default function ProfilePage() {
@@ -35,26 +35,19 @@ export default function ProfilePage() {
       setLoading(true);
       setError('');
       
-      // Get current user (combines auth + profile data)
-      const user = await getCurrentUser();
+      // Get current user (auth only)
+      const user = await getCurrentSessionUser();
       
       if (!user) {
         setError('No authenticated user found');
         return;
       }
-
-      // Try to get extended profile data
-      let profileData = null;
-      try {
-        profileData = await getProfile({ userId: user.id });
-      } catch (profileError) {
-        console.warn('Profile not found, will create new:', profileError);
-      }
       
-      // Merge user data with profile data
+      // Initialize profile with user data
       const combinedProfile = {
         ...user,
-        ...profileData
+        email: user.email,
+        user_id: user.id
       };
       
       setProfile(combinedProfile);
@@ -91,26 +84,28 @@ export default function ProfilePage() {
   };
 
   const handleSave = async () => {
-    if (!profile?.id) {
-      setError('No user ID found');
-      return;
-    }
-
     try {
       setSaving(true);
       setError('');
       setSuccessMessage('');
 
+      const authed = await getCurrentSessionUser();
+      if (!authed) {
+        setError('Please sign in to continue');
+        return;
+      }
+
       // Prepare profile data for upsert
       const profileUpdate = {
-        id: profile.id,
-        name: formData.name,
-        city: formData.city,
-        bio: formData.bio,
+        user_id: authed.id,        // REQUIRED
+        email: authed.email ?? null,
+        full_name: formData.name,
+        city: formData.city ?? null,
+        bio: formData.bio ?? null,
         age: formData.age ? parseInt(formData.age) : null,
-        show_on_discover: formData.show_on_discover,
-        show_distance: formData.show_distance,
-        show_age: formData.show_age,
+        show_on_discover: formData.show_on_discover ?? true,
+        show_distance: formData.show_distance ?? true,
+        show_age: formData.show_age ?? true,
         updated_at: new Date().toISOString()
       };
 

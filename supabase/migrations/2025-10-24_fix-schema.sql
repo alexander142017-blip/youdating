@@ -18,6 +18,9 @@ create table if not exists public.profiles (
   created_at timestamptz default now()
 );
 
+-- Add explicit unique constraint on user_id (for clarity, even though primary key already ensures uniqueness)
+alter table public.profiles add constraint if not exists profiles_user_id_unique unique (user_id);
+
 -- Enable RLS
 alter table public.profiles enable row level security;
 

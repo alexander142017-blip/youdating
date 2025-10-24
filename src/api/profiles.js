@@ -3,6 +3,68 @@ import { getCurrentSessionUser } from './session';
 import { validateUserSession, executeWithErrorHandling, explainSupabaseError } from '../utils/rlsErrorHandler.js';
 
 /**
+ * Valid columns for profiles table - used to filter API payloads
+ */
+const VALID_PROFILE_COLUMNS = [
+  'user_id',
+  'email', 
+  'full_name',
+  'onboarding_complete',
+  'city',
+  'lat',
+  'lng', 
+  'bio',
+  'photos',
+  'created_at',
+  'updated_at',
+  // Additional profile fields that may exist
+  'profile_completed',
+  'onboarding_completed_at',
+  'photo_url',
+  'has_photo',
+  'age',
+  'show_on_discover',
+  'show_distance',
+  'show_age',
+  'discovery_age_min',
+  'discovery_age_max',
+  'discovery_max_distance',
+  'notification_matches',
+  'notification_messages', 
+  'notification_likes'
+];
+
+/**
+ * Sanitize payload to only include valid profile columns
+ * @param {Object} payload - Raw payload object
+ * @returns {Object} - Sanitized payload with only valid columns
+ */
+function sanitizeProfilePayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return {};
+  }
+  
+  const sanitized = {};
+  
+  // Only include valid columns
+  Object.keys(payload).forEach(key => {
+    if (VALID_PROFILE_COLUMNS.includes(key)) {
+      // Remove undefined values to prevent database errors
+      if (payload[key] !== undefined) {
+        sanitized[key] = payload[key];
+      }
+    } else {
+      console.warn(`[sanitizeProfilePayload] Ignoring invalid column: ${key}`);
+    }
+  });
+  
+  return sanitized;
+}
+
+// Example usage: sanitizeProfilePayload({id: 1, user_id: 'uuid', bio: 'test', invalid_field: 'ignored'})
+// Returns: {user_id: 'uuid', bio: 'test'} (id and invalid_field are filtered out)
+
+/**
  * Get profile by userId or email.
  */
 export async function getProfile({ userId, email }) {
@@ -35,18 +97,16 @@ export async function upsertProfile(payload) {
     const session = await validateUserSession();
     const userId = session.user.id;
     
-    const sanitizedPayload = {
+    // Sanitize payload to only include valid columns and remove undefined values
+    const sanitizedPayload = sanitizeProfilePayload({
       ...payload,
       user_id: userId,
       updated_at: new Date().toISOString(),
-    };
-
-    // Remove undefined values to prevent database errors
-    Object.keys(sanitizedPayload).forEach(key => {
-      if (sanitizedPayload[key] === undefined) {
-        delete sanitizedPayload[key];
-      }
     });
+
+    if (Object.keys(sanitizedPayload).length === 0) {
+      throw new Error('upsertProfile payload contains no valid columns after sanitization');
+    }
 
     console.log(`[upsertProfile] Saving profile for user ${userId}:`, sanitizedPayload);
 
@@ -88,18 +148,16 @@ export async function saveProfile(payload) {
     const session = await validateUserSession();
     const userId = session.user.id;
     
-    const sanitizedPayload = {
+    // Sanitize payload to only include valid columns and remove undefined values
+    const sanitizedPayload = sanitizeProfilePayload({
       ...payload,
       user_id: userId,
       updated_at: new Date().toISOString(),
-    };
-
-    // Remove undefined values
-    Object.keys(sanitizedPayload).forEach(key => {
-      if (sanitizedPayload[key] === undefined) {
-        delete sanitizedPayload[key];
-      }
     });
+
+    if (Object.keys(sanitizedPayload).length === 0) {
+      throw new Error('saveProfile payload contains no valid columns after sanitization');
+    }
 
     console.log(`[saveProfile] Attempting save for user ${userId}:`, sanitizedPayload);
 
@@ -119,11 +177,11 @@ export async function saveProfile(payload) {
     console.log(`[saveProfile] Update failed, attempting insert:`, updateError?.message);
 
     // Fallback to insert with required fields
-    const insertPayload = {
+    const insertPayload = sanitizeProfilePayload({
       ...sanitizedPayload,
       email: sanitizedPayload.email || session.user.email,
       created_at: new Date().toISOString(),
-    };
+    });
 
     const { data: insertData, error: insertError } = await supabase
       .from('profiles')

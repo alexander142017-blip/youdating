@@ -1,3 +1,6 @@
+// DEV: keep this file formatted; mismatched braces will break Vite build.
+/* eslint react/prop-types: 0 */
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../api/supabase';
 import { getProfile, upsertProfile } from '../api/profiles';
@@ -87,7 +90,7 @@ import {
 const PHONE_VERIFICATION_REQUIRED = import.meta.env.VITE_REQUIRE_PHONE_VERIFICATION === '1';
 const TOTAL_STEPS = PHONE_VERIFICATION_REQUIRED ? 7 : 5;
 
-export default function OnboardingPage() {
+const OnboardingPage = () => {
     console.log('[ONBOARDING] Component rendering');
     const navigate = useNavigate();
     const [currentStep, setCurrentStep] = useState(1);
@@ -209,7 +212,6 @@ export default function OnboardingPage() {
             setUploading(false);
         }
     }
-    };
 
     const handlePhotoUpload = async (event) => {
         const files = Array.from(event.target.files);
@@ -1256,4 +1258,6 @@ export default function OnboardingPage() {
             </div>
         </div>
     );
-}
+};
+
+export default OnboardingPage;

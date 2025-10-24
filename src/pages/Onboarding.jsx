@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getCurrentSessionUser } from '@/api/session';
 import { supabase } from '@/api/supabase';
+import { upsertProfile } from '@/api/profiles';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { toE164 } from '@/utils/phone';
@@ -37,21 +38,12 @@ async function ensureProfile(session) {
 
     console.log('[ONBOARDING] No profile found, creating minimal profile for user:', uid);
     
-    const { data: inserted, error: insErr } = await supabase
-      .from('profiles')
-      .insert([{
-        user_id: uid,
-        email,
-        onboarding_complete: false,
-        full_name: session.user.user_metadata?.full_name || null
-      }])
-      .select()
-      .single();
-      
-    if (insErr) {
-      console.error('[PROFILE ERROR]', insErr?.message || insErr);
-      throw insErr;
-    }
+    const inserted = await upsertProfile({
+      user_id: uid,
+      email,
+      onboarding_complete: false,
+      full_name: session.user.user_metadata?.full_name || null
+    });
     
     console.log('[ONBOARDING] Created new profile:', inserted);
     return inserted;
@@ -594,15 +586,14 @@ export default function OnboardingPage() {
             
             console.log('[ONBOARDING] Updating profile with data:', updateData);
             
-            const { error } = await supabase
-                .from('profiles')
-                .update(updateData)
-                .eq('user_id', userId);
-            
-            if (error) {
-                console.error('[ONBOARDING] Profile update error:', error);
-                throw new Error(`Database error: ${error.message}`);
-            }
+            await upsertProfile({
+                user_id: userId,
+                bio: updateData.bio,
+                onboarding_complete: updateData.onboarding_complete,
+                lat: updateData.lat,
+                lng: updateData.lng,
+                city: updateData.city
+            });
             
             console.log('[ONBOARDING COMPLETE] Profile updated successfully for user:', userId);
             

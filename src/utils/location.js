@@ -1,5 +1,6 @@
 import { supabase } from '../api/supabase';
 import { validateUserSession, executeWithErrorHandling } from './rlsErrorHandler';
+import { upsertProfile } from '@/api/profiles';
 
 export async function getCoords(timeoutMs = 15000) {
   return new Promise((resolve, reject) => {
@@ -52,16 +53,11 @@ export async function saveCoordsToProfile() {
       throw new Error('Invalid location coordinates received');
     }
     
-    const { error } = await supabase
-      .from('profiles')
-      .update({ 
-        lat: parseFloat(lat), 
-        lng: parseFloat(lng), 
-        location_updated_at: new Date().toISOString() 
-      })
-      .eq('user_id', userId);
-    
-    if (error) throw error;
+    await upsertProfile({
+      user_id: userId,
+      lat: parseFloat(lat),
+      lng: parseFloat(lng)
+    });
     
     return { lat: parseFloat(lat), lng: parseFloat(lng) };
   }, 'location save');

@@ -5,8 +5,17 @@ import { upsertProfile } from '@/api/profiles';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { toE164 } from '@/utils/phone';
-import { uploadProfilePhoto } from '../utils/upload';
-import { saveCoordsToProfile } from '../utils/location';
+import { uploadProfilePhoto } from '@/utils/upload';
+import { saveCoordsToProfile } from '@/utils/location';
+import { handleSupabaseError, executeWithErrorHandling } from '@/utils/rlsErrorHandler';
+import { validateOnboardingStep, validateOnboardingProfile, ValidationError } from '@/utils/validation';
+
+import { Button } from '@/components/ui/button';
+import { Card, CardBody } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Avatar } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 
 /**
  * Ensure a profile exists for the authenticated user
@@ -20,29 +29,22 @@ async function ensureProfile(session) {
   try {
     console.log('[ONBOARDING] Checking for existing profile for user:', uid);
     
-    const { data: existing, error: selErr } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', uid)
-      .maybeSingle();
-      
-    if (selErr) {
-      console.error('[PROFILE ERROR]', selErr?.message || selErr);
-      throw selErr;
-    }
+    // Try to get existing profile using centralized API
+    const profile = await getProfile({ userId: uid });
     
-    if (existing) {
-      console.log('[ONBOARDING] Found existing profile:', existing);
-      return existing;
+    if (profile) {
+      console.log('[ONBOARDING] Found existing profile:', profile);
+      return profile;
     }
 
     console.log('[ONBOARDING] No profile found, creating minimal profile for user:', uid);
     
+    // Create new profile using centralized API
     const inserted = await upsertProfile({
       user_id: uid,
       email,
       onboarding_complete: false,
-      full_name: session.user.user_metadata?.full_name || null
+      full_name: session.user.user_metadata?.full_name ?? null
     });
     
     console.log('[ONBOARDING] Created new profile:', inserted);
@@ -139,36 +141,35 @@ export default function OnboardingPage() {
     const handleAddPhoto = async (file) => {
         setError("");
         setUploading(true);
+        
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const userId = session?.user?.id;
-            if (!userId) throw new Error("Not signed in");
+            await executeWithErrorHandling(async () => {
+                // Validate session
+                const { data: { session } } = await supabase.auth.getSession();
+                const userId = session?.user?.id;
+                if (!userId) throw new Error("Not signed in");
+                
+                // Enforce max 6 photos
+                const current = Array.isArray(formData.photos) ? formData.photos : [];
+                if (current.length >= 6) throw new Error("You can upload up to 6 photos.");
+                
+                const { url } = await uploadProfilePhoto(userId, file);
+                const nextPhotos = [...current, url];
+                
+                // Update profile with new photos
+                await upsertProfile({
+                    user_id: userId,
+                    photos: nextPhotos
+                });
+                
+                // Update local state
+                setFormData(prev => ({ ...prev, photos: nextPhotos }));
+            }, 'photo upload');
             
-            // Enforce max 6 photos
-            const current = Array.isArray(formData.photos) ? formData.photos : [];
-            if (current.length >= 6) throw new Error("You can upload up to 6 photos.");
-            
-            const { url } = await uploadProfilePhoto(userId, file);
-            const nextPhotos = [...current, url];
-            
-            // Update profile in database with new photos array
-            const { error } = await supabase
-                .from("profiles")
-                .update({ photos: nextPhotos })
-                .eq("user_id", userId);
-            if (error) throw error;
-            
-            // Update local state
-            setFormData(prev => ({ ...prev, photos: nextPhotos }));
-            
-        } catch (e) {
-            const msg = e?.message || "Upload failed";
-            setError(msg.includes("row-level security")
-                ? "Photo upload blocked by security policy. Please sign in again and try."
-                : msg.includes("Bucket not found")
-                ? "Photo storage is not configured. Please contact support."
-                : msg);
-            console.error(e);
+        } catch (error) {
+            const handledError = handleSupabaseError(error, 'photo upload');
+            setError(handledError.message);
+            console.error('Photo upload error:', error);
         } finally {
             setUploading(false);
         }
@@ -213,88 +214,39 @@ export default function OnboardingPage() {
     };
 
     const validateStep = (step) => {
-        switch (step) {
-            case 1:
-                if (!formData.first_name.trim()) {
-                    setError("Please enter your first name");
-                    return false;
-                }
-                if (formData.first_name.trim().length < 2) {
-                    setError("First name must be at least 2 characters");
-                    return false;
-                }
-                break;
-            case 2: {
-                if (!formData.date_of_birth) {
-                    setError("Please select your date of birth");
-                    return false;
-                }
-                // Check if user is at least 18 years old
-                const birthDate = new Date(formData.date_of_birth);
-                const today = new Date();
-                let age = today.getFullYear() - birthDate.getFullYear();
-                const monthDiff = today.getMonth() - birthDate.getMonth();
-                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-                    age--;
-                }
-                if (age < 18) {
-                    setError("You must be at least 18 years old to use YouDating");
-                    return false;
-                }
-                if (!formData.gender) {
-                    setError("Please select your gender");
-                    return false;
-                }
-                if (!formData.looking_for) {
-                    setError("Please select who you're looking for");
-                    return false;
-                }
-                break;
-            }
-            case 3:
-                // Photos are optional - users can skip this step
-                break;
-            case 4:
-                // Location is optional - users can skip this step
-                break;
-            case 5:
-                if (!formData.bio.trim()) {
-                    setError("Please write a short bio about yourself");
-                    return false;
-                }
-                if (formData.bio.trim().length < 20) {
-                    setError("Min 20 chars");
-                    return false;
-                }
-                if (formData.bio.trim().length > 500) {
-                    setError("Bio must be less than 500 characters");
-                    return false;
-                }
-                break;
-            case 6: {
-                if (!formData.phone.trim()) {
-                    setPhoneError("Please enter your phone number");
-                    return false;
-                }
+        try {
+            // Reset all error states
+            setError("");
+            setPhoneError("");
+            setCodeError("");
+            
+            // Use centralized validation logic
+            validateOnboardingStep(formData, step);
+            
+            // Phone-specific validations
+            if (step === 6) {
                 const phoneE164 = toE164(formData.phone, 'US');
                 if (!phoneE164) {
-                    setPhoneError("Please enter a valid phone number");
-                    return false;
+                    throw new ValidationError("Please enter a valid phone number", 'phone');
                 }
-                break;
             }
-            case 7:
-                if (!formData.phone_verified) {
-                    setCodeError("Please verify your phone number first");
-                    return false;
+            
+            return true;
+        } catch (error) {
+            if (error instanceof ValidationError) {
+                // Set appropriate error based on field
+                if (error.field === 'phone') {
+                    setPhoneError(error.message);
+                } else if (error.field === 'verification_code') {
+                    setCodeError(error.message);
+                } else {
+                    setError(error.message);
                 }
-                break;
-            default:
-                return true;
+            } else {
+                setError(error.message || 'Validation failed');
+            }
+            return false;
         }
-        
-        setError("");
-        return true;
     };
 
     const nextStep = () => {
@@ -515,38 +467,47 @@ export default function OnboardingPage() {
         setDetectedLocation(null);
         
         try {
+            // Use the utility function that handles error cases and session validation
             const coords = await saveCoordsToProfile();
             setCoordinates(coords);
             
-            // Attempt reverse geocoding
+            // Attempt reverse geocoding with error boundary
             try {
-                const r = await fetch(`/api/geocode/reverse?lat=${coords.lat}&lng=${coords.lng}`);
-                const g = await r.json();
+                const response = await fetch(`/api/geocode/reverse?lat=${coords.lat}&lng=${coords.lng}`);
                 
-                if (g?.ok) {
-                    setFormData(f => ({
-                        ...f,
-                        city: g.city || f.city || '',
-                        state: g.state || f.state || '',
-                        country: g.country || f.country || ''
+                if (!response.ok) {
+                    throw new Error('Geocoding service unavailable');
+                }
+                
+                const geocodeData = await response.json();
+                
+                if (geocodeData?.ok && geocodeData.city) {
+                    const locationUpdate = {
+                        city: geocodeData.city,
+                        state: geocodeData.state,
+                        country: geocodeData.country
+                    };
+                    
+                    // Update form data with detected location
+                    setFormData(current => ({
+                        ...current,
+                        ...locationUpdate
                     }));
-                    setDetectedLocation(`${g.city || ''}, ${g.state || ''}, ${g.country || ''}`);
-                } else {
-                    setDetectedLocation(null); // silently ignore geocoding failure
+                    
+                    // Show friendly location string
+                    setDetectedLocation(
+                        [geocodeData.city, geocodeData.state, geocodeData.country]
+                            .filter(Boolean)
+                            .join(', ')
+                    );
                 }
             } catch (geocodeError) {
-                console.log("Reverse geocoding failed:", geocodeError);
-                setDetectedLocation(null); // silently ignore
+                // Log but don't expose geocoding errors to user since location was already saved
+                console.warn("Reverse geocoding failed:", geocodeError);
             }
         } catch (error) {
-            let msg = error?.message || "Could not get your location";
-            
-            // Handle specific geolocation errors with friendly messages
-            if (msg.includes('denied') || msg.includes('permission')) {
-                msg = "We couldn't access your location. You can enter your city manually.";
-            }
-            
-            setLocationError(msg);
+            // Location utilities provide user-friendly error messages
+            setLocationError(error.message);
             console.error("Location capture error:", error);
         } finally {
             setLocationLoading(false);
@@ -558,42 +519,45 @@ export default function OnboardingPage() {
         setError("");
         
         try {
-            // Fetch the current Supabase session and userId
+            // Get the current session
             const { data: { session } } = await supabase.auth.getSession();
             const userId = session?.user?.id;
             if (!userId) throw new Error("Not signed in");
             
-            // Allow optional bio (no minimum requirement)
-            const aboutMe = formData.bio || "";
+            // Get the current profile
+            const currentProfile = await getProfile({ userId });
             
-            // Ensure profile exists for the user
-            await ensureProfile(session);
-            
-            // Update profile with bio and completion status
-            const updateData = {
-                bio: aboutMe.trim(), 
-                onboarding_complete: true
+            // Prepare profile update
+            const profileUpdate = {
+                ...currentProfile, // Preserve existing fields
+                user_id: userId,
+                bio: formData.bio.trim(),
+                onboarding_complete: true,
+                first_name: formData.first_name,
+                photos: formData.photos,
+                gender: formData.gender,
+                looking_for: formData.looking_for,
+                date_of_birth: formData.date_of_birth,
+                phone: formData.phone,
+                phone_verified: formData.phone_verified,
+                
+                // Location data (only include if available)
+                ...(coordinates?.lat && coordinates?.lng && {
+                    lat: coordinates.lat,
+                    lng: coordinates.lng
+                }),
+                ...(formData.city && { city: formData.city }),
+                ...(formData.state && { state: formData.state }),
+                ...(formData.country && { country: formData.country })
             };
             
-            // Include location data if available (graceful handling if missing)
-            if (coordinates?.lat && coordinates?.lng) {
-                updateData.lat = coordinates.lat;
-                updateData.lng = coordinates.lng;
-            }
-            if (detectedLocation?.city) {
-                updateData.city = detectedLocation.city;
-            }
+            // Validate the complete profile
+            validateOnboardingProfile(profileUpdate);
             
-            console.log('[ONBOARDING] Updating profile with data:', updateData);
+            console.log('[ONBOARDING] Updating profile with data:', profileUpdate);
             
-            await upsertProfile({
-                user_id: userId,
-                bio: updateData.bio,
-                onboarding_complete: updateData.onboarding_complete,
-                lat: updateData.lat,
-                lng: updateData.lng,
-                city: updateData.city
-            });
+            // Use centralized profile API to update
+            await upsertProfile(profileUpdate);
             
             console.log('[ONBOARDING COMPLETE] Profile updated successfully for user:', userId);
             
@@ -601,18 +565,16 @@ export default function OnboardingPage() {
             navigate("/discover");
             
         } catch (error) {
-            console.error('Onboarding completion error:', error);
+            // Use handleSupabaseError utility for database errors
+            const handledError = handleSupabaseError(error, 'onboarding completion');
+            console.error('Onboarding completion error:', handledError);
             
-            // Show friendly error messages
-            let friendlyMessage;
+            // Show error with contextual info
+            let friendlyMessage = handledError.message;
+            
+            // Handle specific validation errors
             if (error?.message === "Min 20 chars") {
                 friendlyMessage = "Please write at least 20 characters about yourself to help others get to know you better.";
-            } else if (error?.message === "Not signed in") {
-                friendlyMessage = "You appear to be signed out. Please refresh the page and try again.";
-            } else if (error?.message?.includes("Database error")) {
-                friendlyMessage = "We're having trouble saving your profile. Please check your connection and try again.";
-            } else {
-                friendlyMessage = "Something went wrong while completing your profile. Please try again in a moment.";
             }
             
             setError(friendlyMessage);

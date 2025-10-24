@@ -99,7 +99,7 @@ export default function ProfilePage() {
       const profileUpdate = {
         user_id: authed.id,        // REQUIRED
         email: authed.email ?? null,
-        full_name: formData.name,
+        full_name: formData.full_name,
         city: formData.city ?? null,
         bio: formData.bio ?? null,
         age: formData.age ? parseInt(formData.age) : null,

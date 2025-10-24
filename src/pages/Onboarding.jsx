@@ -16,49 +16,49 @@ async function ensureProfile(session) {
   const uid = session.user.id;
   const email = session.user.email ?? null;
   
-  console.log('[ONBOARDING] Checking for existing profile for user:', uid);
-  
-  const { data: existing, error: selErr } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('user_id', uid)
-    .maybeSingle();
+  try {
+    console.log('[ONBOARDING] Checking for existing profile for user:', uid);
     
-  if (selErr) {
-    console.error('[ONBOARDING] Error checking existing profile:', selErr);
-    throw selErr;
-  }
-  
-  if (existing) {
-    console.log('[ONBOARDING] Found existing profile:', existing);
-    return existing;
-  }
+    const { data: existing, error: selErr } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', uid)
+      .maybeSingle();
+      
+    if (selErr) {
+      console.error('[PROFILE ERROR]', selErr?.message || selErr);
+      throw selErr;
+    }
+    
+    if (existing) {
+      console.log('[ONBOARDING] Found existing profile:', existing);
+      return existing;
+    }
 
-  console.log('[ONBOARDING] No profile found, creating minimal profile for user:', uid);
-  
-  const { data: inserted, error: insErr } = await supabase
-    .from('profiles')
-    .insert([{
-      user_id: uid,
-      email,
-      onboarding_complete: false,
-      full_name: null,
-      city: null,
-      lat: null,
-      lng: null,
-      bio: null,
-      created_at: new Date().toISOString()
-    }])
-    .select()
-    .single();
+    console.log('[ONBOARDING] No profile found, creating minimal profile for user:', uid);
     
-  if (insErr) {
-    console.error('[ONBOARDING] Error creating profile:', insErr);
-    throw insErr;
+    const { data: inserted, error: insErr } = await supabase
+      .from('profiles')
+      .insert([{
+        user_id: uid,
+        email,
+        onboarding_complete: false,
+        full_name: session.user.user_metadata?.full_name || null
+      }])
+      .select()
+      .single();
+      
+    if (insErr) {
+      console.error('[PROFILE ERROR]', insErr?.message || insErr);
+      throw insErr;
+    }
+    
+    console.log('[ONBOARDING] Created new profile:', inserted);
+    return inserted;
+  } catch (error) {
+    console.error('[PROFILE ERROR]', error?.message || error);
+    throw error;
   }
-  
-  console.log('[ONBOARDING] Created new profile:', inserted);
-  return inserted;
 }
 import { 
   Loader2, 

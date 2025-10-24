@@ -30,8 +30,8 @@ export default function ProtectedRoute({ children, requireOnboarding = false, ne
       // User is logged in, get their profile with optimized query
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('id, onboarding_complete, phone_verified, profile_completed')
-        .eq('id', session.user.id)
+        .select('user_id, onboarding_complete, phone_verified, profile_completed')
+        .eq('user_id', session.user.id)
         .maybeSingle();
 
       setUser(session.user);

@@ -1,7 +1,11 @@
 /**
  * Twilio SMS Verification Check - Vercel API Route
  * 
- * Verifies SMS code entered by authenticated user
+ * Verifies SMS code    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('phone_e164, phone_verified')
+      .eq('user_id', user.id)
+      .single();red by authenticated user
  * POST /api/phone/check
  * 
  * Required Environment Variables:
@@ -115,7 +119,7 @@ export default async function handler(req, res) {
         phone_verified: true,
         verify_request_id: null // Clear the request ID
       })
-      .eq('id', user.id);
+      .eq('user_id', user.id);
 
     if (updateError) {
       console.error('Profile update error:', updateError);

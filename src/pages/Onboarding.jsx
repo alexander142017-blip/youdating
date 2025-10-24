@@ -6,6 +6,60 @@ import { createPageUrl } from '@/utils';
 import { toE164 } from '@/utils/phone';
 import { uploadProfilePhoto } from '../utils/upload';
 import { saveCoordsToProfile } from '../utils/location';
+
+/**
+ * Ensure a profile exists for the authenticated user
+ * @param {Object} session - Supabase session object
+ * @returns {Object} - Profile data (existing or newly created)
+ */
+async function ensureProfile(session) {
+  const uid = session.user.id;
+  const email = session.user.email ?? null;
+  
+  console.log('[ONBOARDING] Checking for existing profile for user:', uid);
+  
+  const { data: existing, error: selErr } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('user_id', uid)
+    .maybeSingle();
+    
+  if (selErr) {
+    console.error('[ONBOARDING] Error checking existing profile:', selErr);
+    throw selErr;
+  }
+  
+  if (existing) {
+    console.log('[ONBOARDING] Found existing profile:', existing);
+    return existing;
+  }
+
+  console.log('[ONBOARDING] No profile found, creating minimal profile for user:', uid);
+  
+  const { data: inserted, error: insErr } = await supabase
+    .from('profiles')
+    .insert([{
+      user_id: uid,
+      email,
+      onboarding_complete: false,
+      full_name: null,
+      city: null,
+      lat: null,
+      lng: null,
+      bio: null,
+      created_at: new Date().toISOString()
+    }])
+    .select()
+    .single();
+    
+  if (insErr) {
+    console.error('[ONBOARDING] Error creating profile:', insErr);
+    throw insErr;
+  }
+  
+  console.log('[ONBOARDING] Created new profile:', inserted);
+  return inserted;
+}
 import { 
   Loader2, 
   ArrowLeft, 
@@ -206,16 +260,10 @@ export default function OnboardingPage() {
                 break;
             }
             case 3:
-                if (formData.photos.length === 0) {
-                    setError("Please upload at least one photo");
-                    return false;
-                }
+                // Photos are optional - users can skip this step
                 break;
             case 4:
-                if (!formData.city.trim()) {
-                    setError("Please enter your city");
-                    return false;
-                }
+                // Location is optional - users can skip this step
                 break;
             case 5:
                 if (!formData.bio.trim()) {
@@ -523,24 +571,11 @@ export default function OnboardingPage() {
             const userId = session?.user?.id;
             if (!userId) throw new Error("Not signed in");
             
-            // Guard: minimum 20 characters for bio
+            // Allow optional bio (no minimum requirement)
             const aboutMe = formData.bio || "";
-            if (aboutMe.trim().length < 20) {
-                throw new Error("Min 20 chars");
-            }
             
-            // Check if a row exists in profiles for that userId
-            const { data: existing } = await supabase
-                .from('profiles')
-                .select('user_id')
-                .eq('user_id', userId)
-                .maybeSingle();
-            
-            if (!existing) {
-                await supabase
-                    .from('profiles')
-                    .insert({ user_id: userId });
-            }
+            // Ensure profile exists for the user
+            await ensureProfile(session);
             
             // Update profile with bio and completion status
             const { error } = await supabase

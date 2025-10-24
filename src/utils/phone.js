@@ -169,7 +169,8 @@ export async function validatePhoneForAPI(raw, defaultCountry = 'US') {
 
 // Example usage:
 /*
-import { toE164, validatePhoneForAPI } from '@/utils/phone';
+// Import the phone utilities in your component
+import { toE164, validatePhoneForAPI } from './phone';
 
 // Before calling /api/phone/start
 const phoneE164 = toE164(userInput, 'US');

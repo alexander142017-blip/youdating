@@ -1,5 +1,8 @@
-import { supabase } from '../api/supabase';
+import { supabase } from './supabase';
 
+/**
+ * Gets a profile by user_id or email
+ */
 export async function getProfile({ userId, email }) {
   if (userId) {
     const { data, error } = await supabase.from('profiles').select('*').eq('user_id', userId).single();

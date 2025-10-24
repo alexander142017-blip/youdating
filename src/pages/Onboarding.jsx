@@ -1,14 +1,27 @@
+// DEV: keep this file formatted; mismatched braces will break Vite build.
+/* eslint react/prop-types: 0 */
+
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getCurrentSessionUser } from '@/api/session';
-import { supabase } from '@/api/supabase';
-import { upsertProfile } from '@/api/profiles';
+import { getCurrentSessionUser } from '../api/auth';
+import { upsertProfile } from '../api/profiles';
+import { uploadProfilePhoto } from '../api/storage';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { toE164 } from '@/utils/phone';
-import { uploadProfilePhoto } from '@/utils/upload';
 import { saveCoordsToProfile } from '@/utils/location';
 import { handleSupabaseError, executeWithErrorHandling } from '@/utils/rlsErrorHandler';
 import { validateOnboardingStep, validateOnboardingProfile, ValidationError } from '@/utils/validation';
+
+/**
+ * Get the current authenticated user or throw if not authenticated
+ * @returns {Promise<User>} Supabase user object
+ * @throws {Error} If not authenticated
+ */
+async function getCurrentUser() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  return user;
+}
 
 import { Button } from '@/components/ui/button';
 import { Card, CardBody } from '@/components/ui/card';
@@ -77,10 +90,27 @@ import {
 const PHONE_VERIFICATION_REQUIRED = import.meta.env.VITE_REQUIRE_PHONE_VERIFICATION === '1';
 const TOTAL_STEPS = PHONE_VERIFICATION_REQUIRED ? 7 : 5;
 
-export default function OnboardingPage() {
+const OnboardingPage = () => {
     console.log('[ONBOARDING] Component rendering');
     const navigate = useNavigate();
+    const [user, setUser] = useState(null);
+    const [loadingUser, setLoadingUser] = useState(true);
     const [currentStep, setCurrentStep] = useState(1);
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            const u = await getCurrentSessionUser();
+            if (mounted) {
+                setUser(u);
+                setLoadingUser(false);
+            }
+        })();
+        return () => { mounted = false; };
+    }, []);
+
+    if (loadingUser) return <div className="p-6">Loading...</div>;
+    if (!user) return <div className="p-6">Please sign in to continue.</div>;
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [locationLoading, setLocationLoading] = useState(false);
@@ -126,54 +156,70 @@ export default function OnboardingPage() {
         checkAuthStatus();
     }, [checkAuthStatus]);
 
-    const handleInputChange = (field, value) => {
+    async function savePatch(patch) {
+        const user = await getCurrentUser();
+        // Only send changed fields plus required identifiers
+        const payload = {
+            user_id: user.id,
+            email: user.email ?? null,
+            onboarding_complete: false,
+            ...patch
+        };
+        await upsertProfile(payload);
+        setFormData(prev => ({ ...prev, ...patch }));
+    }
+
+    const handleInputChange = async (field, value) => {
+        // Clear error when user starts typing
+        if (error) setError("");
+        
+        // Update local state immediately for responsiveness
         setFormData(prev => ({
             ...prev,
             [field]: value
         }));
         
-        // Clear error when user starts typing
-        if (error) setError("");
+        // Save changes to server in background
+        try {
+            await savePatch({ [field]: value });
+        } catch (error) {
+            console.error(`Failed to save ${field} update:`, error);
+            // Don't show error to user since local state is updated
+        }
     };
 
     // Use the new RLS-compliant upload utility
 
-    const handleAddPhoto = async (file) => {
+    async function onUploadPhoto(file) {
         setError("");
         setUploading(true);
         
         try {
-            await executeWithErrorHandling(async () => {
-                // Validate session
-                const { data: { session } } = await supabase.auth.getSession();
-                const userId = session?.user?.id;
-                if (!userId) throw new Error("Not signed in");
-                
-                // Enforce max 6 photos
-                const current = Array.isArray(formData.photos) ? formData.photos : [];
-                if (current.length >= 6) throw new Error("You can upload up to 6 photos.");
-                
-                const { url } = await uploadProfilePhoto(userId, file);
-                const nextPhotos = [...current, url];
-                
-                // Update profile with new photos
-                await upsertProfile({
-                    user_id: userId,
-                    photos: nextPhotos
-                });
-                
-                // Update local state
-                setFormData(prev => ({ ...prev, photos: nextPhotos }));
-            }, 'photo upload');
+            const user = await getCurrentUser();
+            
+            // Enforce max 6 photos
+            const current = Array.isArray(formData.photos) ? formData.photos : [];
+            if (current.length >= 6) {
+                throw new Error("You can upload up to 6 photos.");
+            }
+            
+            // Upload the photo
+            const { url } = await uploadProfilePhoto(file, user.id);
+            
+            // Save the new photos array
+            await savePatch({ 
+                photos: [...current, url] 
+            });
             
         } catch (error) {
             const handledError = handleSupabaseError(error, 'photo upload');
             setError(handledError.message);
             console.error('Photo upload error:', error);
+            throw error; // Re-throw for the UI handler
         } finally {
             setUploading(false);
         }
-    };
+    }
 
     const handlePhotoUpload = async (event) => {
         const files = Array.from(event.target.files);
@@ -192,7 +238,7 @@ export default function OnboardingPage() {
 
             // Upload files one by one to avoid overwhelming the UI
             for (const file of files) {
-                await handleAddPhoto(file);
+                await onUploadPhoto(file);
             }
 
         } catch (err) {
@@ -514,70 +560,65 @@ export default function OnboardingPage() {
         }
     };
 
+    async function finishOnboarding(formState) {
+        const authed = user ?? (await getCurrentSessionUser());
+        if (!authed) {
+            console.warn('[onboarding] no user; redirect to sign-in');
+            navigate('/auth');
+            return;
+        }
+
+        const photos = Array.isArray(formState.photos) ? formState.photos : [];
+
+        const payload = {
+            user_id: authed.id,        // REQUIRED
+            email: authed.email ?? null,
+            full_name: formState.full_name ?? null,
+            onboarding_complete: true,
+            city: formState.city ?? null,
+            lat: formState.lat ?? null,
+            lng: formState.lng ?? null,
+            bio: formState.bio ?? null,
+            photos: photos,
+            gender: formState.gender ?? null,
+            looking_for: formState.looking_for ?? null,
+            date_of_birth: formState.date_of_birth ?? null,
+            phone: formState.phone ?? null,
+            phone_verified: formState.phone_verified ?? false
+        };
+
+        console.log('[Onboarding Finish] payload', payload);
+        await upsertProfile(payload);
+        return payload;
+    }
+
     const handleFinishOnboarding = async () => {
         setLoading(true);
         setError("");
         
         try {
-            // Get the current session
-            const { data: { session } } = await supabase.auth.getSession();
-            const userId = session?.user?.id;
-            if (!userId) throw new Error("Not signed in");
+            // Validate profile data before saving
+            validateOnboardingProfile({
+                ...formData,
+                lat: coordinates?.lat,
+                lng: coordinates?.lng
+            });
             
-            // Get the current profile
-            const currentProfile = await getProfile({ userId });
-            
-            // Prepare profile update
-            const profileUpdate = {
-                ...currentProfile, // Preserve existing fields
-                user_id: userId,
-                bio: formData.bio.trim(),
-                onboarding_complete: true,
-                first_name: formData.first_name,
-                photos: formData.photos,
-                gender: formData.gender,
-                looking_for: formData.looking_for,
-                date_of_birth: formData.date_of_birth,
-                phone: formData.phone,
-                phone_verified: formData.phone_verified,
-                
-                // Location data (only include if available)
-                ...(coordinates?.lat && coordinates?.lng && {
-                    lat: coordinates.lat,
-                    lng: coordinates.lng
-                }),
-                ...(formData.city && { city: formData.city }),
-                ...(formData.state && { state: formData.state }),
-                ...(formData.country && { country: formData.country })
-            };
-            
-            // Validate the complete profile
-            validateOnboardingProfile(profileUpdate);
-            
-            console.log('[ONBOARDING] Updating profile with data:', profileUpdate);
-            
-            // Use centralized profile API to update
-            await upsertProfile(profileUpdate);
-            
-            console.log('[ONBOARDING COMPLETE] Profile updated successfully for user:', userId);
+            // Complete onboarding with merged data
+            await finishOnboarding({
+                ...formData,
+                lat: coordinates?.lat,
+                lng: coordinates?.lng
+            });
             
             // Redirect to /discover on success
             navigate("/discover");
             
         } catch (error) {
-            // Use handleSupabaseError utility for database errors
             const handledError = handleSupabaseError(error, 'onboarding completion');
             console.error('Onboarding completion error:', handledError);
             
-            // Show error with contextual info
-            let friendlyMessage = handledError.message;
-            
-            // Handle specific validation errors
-            if (error?.message === "Min 20 chars") {
-                friendlyMessage = "Please write at least 20 characters about yourself to help others get to know you better.";
-            }
-            
-            setError(friendlyMessage);
+            setError(handledError.message);
         } finally {
             setLoading(false);
         }
@@ -1219,4 +1260,6 @@ export default function OnboardingPage() {
             </div>
         </div>
     );
-}
+};
+
+export default OnboardingPage;

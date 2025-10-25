@@ -7,6 +7,7 @@ import AuthCallback from './AuthCallback';
 import ErrorBoundary from '../components/core/ErrorBoundary';
 import DiscoverPage from './Discover'; // Keep eager for first-paint speed
 import Debug from './Debug'; // Debug route for router verification
+import { PrivateRoute } from '../components/PrivateRoute';
 
 // Route code-splitting - lazy load infrequent pages
 const Onboarding = lazy(() => import('./Onboarding'));
@@ -50,12 +51,16 @@ export default function AppRoutes() {
               {/* Onboarding routes */}
               <Route path="onboarding" element={
                 <ErrorBoundary>
-                  <Onboarding />
+                  <PrivateRoute>
+                    <Onboarding />
+                  </PrivateRoute>
                 </ErrorBoundary>
               } />
               <Route path="Onboarding" element={
                 <ErrorBoundary>
-                  <Onboarding />
+                  <PrivateRoute>
+                    <Onboarding />
+                  </PrivateRoute>
                 </ErrorBoundary>
               } />
 

@@ -1,16 +1,10 @@
 // DEV: keep this file formatted; mismatched braces will break Vite build.
 /* eslint react/prop-types: 0 */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { getCurrentSessionUser, getCurrentUser } from '../api/auth';
-import { upsertProfile, getProfile } from '../api/profiles';
-import { uploadProfilePhoto } from '../api/storage';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createPageUrl } from '@/utils';
-import { toE164 } from '@/utils/phone';
-import { saveCoordsToProfile } from '@/utils/location';
-import { handleSupabaseError, executeWithErrorHandling } from '@/utils/rlsErrorHandler';
-import { validateOnboardingStep, validateOnboardingProfile, ValidationError } from '@/utils/validation';
+import { getCurrentUser } from '../api/auth';
+import { upsertProfile } from '../api/profiles';
 
 /**
  * Get the current authenticated user or throw if not authenticated

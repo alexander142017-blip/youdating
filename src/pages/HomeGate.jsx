@@ -1,37 +1,35 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
-import { supabase } from '../api/supabase';
-import { upsertProfile } from '@/api/profiles';
-
-import { getProfile } from '@/api/profiles';
+import { getCurrentUser } from '../api/auth';
+import { upsertProfile, fetchMyProfile } from '../api/profiles';
 
 /**
  * Ensure a profile exists for the authenticated user
  * @param {Object} session - Supabase session object
  * @returns {Object} - Profile data (existing or newly created)
  */
-async function ensureProfile(session) {
-  const uid = session.user.id;
-  const email = session.user.email ?? null;
+async function ensureProfile(user) {
+  const user_id = user.id;
+  const email = user.email ?? null;
   
   try {
-    console.log('[HOMEGATE] Checking for existing profile for user:', uid);
+    console.log('[HOMEGATE] Checking for existing profile for user:', user_id);
     
-    const existing = await getProfile(uid);
+    const existing = await fetchMyProfile(user_id);
     
     if (existing) {
       console.log('[HOMEGATE] Found existing profile:', existing);
       return existing;
     }
 
-    console.log('[HOMEGATE] No profile found, creating minimal profile for user:', uid);
+    console.log('[HOMEGATE] No profile found, creating minimal profile for user:', user_id);
     
     const inserted = await upsertProfile({
-      user_id: uid,
+      user_id,
       email,
       onboarding_complete: false,
-      full_name: session.user.user_metadata?.full_name || null,
+      full_name: user.user_metadata?.full_name || null,
       photos: []
     });
     
@@ -49,23 +47,19 @@ export default function HomeGate({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
+    let active = true;
     async function run() {
       try {
         console.log('[HOMEGATE] Starting auth check at path:', loc.pathname);
         
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) {
-          console.error('[HOMEGATE] Session error:', sessionError);
-          throw sessionError;
-        }
+        const user = await getCurrentUser();
+        if (!active) return;
         
-        console.log('[HOMEGATE] Session check result:', session ? 'authenticated' : 'not authenticated');
-        if (cancelled) return;
+        console.log('[HOMEGATE] Auth check result:', user ? 'authenticated' : 'not authenticated');
 
         // If not signed in → go to /auth (but don't loop if already there)
-        if (!session) {
-          console.log('[HOMEGATE] No session, redirecting to auth if needed');
+        if (!user) {
+          console.log('[HOMEGATE] No user, redirecting to auth if needed');
           setLoading(false);
           if (!loc.pathname.startsWith('/auth')) {
             console.log('[HOMEGATE] Redirecting to /auth from:', loc.pathname);
@@ -76,10 +70,10 @@ export default function HomeGate({ children }) {
 
         // Ensure profile exists for authenticated user
         console.log('[HOMEGATE] User authenticated, ensuring profile exists');
-        const prof = await ensureProfile(session);
+        const prof = await ensureProfile(user);
         
         console.log('[HOMEGATE] Profile ensured:', prof);
-        if (cancelled) return;
+        if (!active) return;
 
         setLoading(false);
 
@@ -111,7 +105,7 @@ export default function HomeGate({ children }) {
       }
     }
     run();
-    return () => { cancelled = true; };
+    return () => { active = false; };
   }, [loc.pathname, nav]);
 
   // Always render children; show a visible loading state while checking

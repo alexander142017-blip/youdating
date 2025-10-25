@@ -20,7 +20,7 @@ export function onAuthStateChange(callback) {
       console.error('[session.onAuthStateChange] callback error:', e);
     }
   });
-  return () => subscription?.subscription?.unsubscribe?.();
+  return () => subscription?.unsubscribe?.();
 }
 
 export async function signOut() {

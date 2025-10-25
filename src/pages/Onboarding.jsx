@@ -5,58 +5,15 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser, getCurrentUserId } from '@/api/auth';
 import { upsertProfile } from '@/api/profiles';
-import { supabase } from '@/api/supabase';
-import { uploadProfilePhoto } from '@/utils/upload';
+import { uploadManyPhotos } from '@/api/storageUpload';
 import { saveCoordsToProfile } from '@/utils/location';
 import { ValidationError, validateOnboardingStep, validateOnboardingProfile } from '@/utils/validation';
 import { handleSupabaseError } from '@/utils/rlsErrorHandler';
 import { toE164 } from '@/utils/phone';
 import { createPageUrl } from '@/utils';
+import { supabase } from '@/api/supabase';
 
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Avatar } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 
-/**
- * Ensure a profile exists for the authenticated user
- * @param {Object} session - Supabase session object
- * @returns {Object} - Profile data (existing or newly created)
- */
-async function ensureProfile(session) {
-  const uid = session.user.id;
-  const email = session.user.email ?? null;
-  
-  try {
-    console.log('[ONBOARDING] Checking for existing profile for user:', uid);
-    
-    // Try to get existing profile using centralized API
-    const profile = await upsertProfile({ user_id: uid });
-    
-    if (profile) {
-      console.log('[ONBOARDING] Found existing profile:', profile);
-      return profile;
-    }
-
-    console.log('[ONBOARDING] No profile found, creating minimal profile for user:', uid);
-    
-    // Create new profile using centralized API
-    const inserted = await upsertProfile({
-      user_id: uid,
-      email,
-      onboarding_complete: false,
-      full_name: session.user.user_metadata?.full_name ?? null
-    });
-    
-    console.log('[ONBOARDING] Created new profile:', inserted);
-    return inserted;
-  } catch (error) {
-    console.error('[PROFILE ERROR]', error?.message || error);
-    throw error;
-  }
-}
 import { 
   Loader2, 
   ArrowLeft, 
@@ -179,7 +136,8 @@ const OnboardingPage = () => {
         setUploading(true);
         
         try {
-            const user = await getCurrentUser();
+            const user_id = await getCurrentUserId();
+            if (!user_id) throw new Error('Not authenticated');
             
             // Enforce max 6 photos
             const current = Array.isArray(formData.photos) ? formData.photos : [];
@@ -187,8 +145,9 @@ const OnboardingPage = () => {
                 throw new Error("You can upload up to 6 photos.");
             }
             
-            // Upload the photo
-            const { url } = await uploadProfilePhoto(file, user.id);
+            // Upload the photo and get URL
+            const urls = await uploadManyPhotos([file], user_id);
+            const url = urls[0];
             
             // Save the new photos array
             await savePatch({ 
@@ -196,9 +155,8 @@ const OnboardingPage = () => {
             });
             
         } catch (error) {
-            const handledError = handleSupabaseError(error, 'photo upload');
-            setError(handledError.message);
-            console.error('Photo upload error:', error);
+            setError(error.message);
+            console.error('[Onboarding.onUploadPhoto] error:', error);
             throw error; // Re-throw for the UI handler
         } finally {
             setUploading(false);
@@ -545,25 +503,31 @@ const OnboardingPage = () => {
     };
 
     async function finishOnboarding(formState) {
-        const authed = user ?? (await getCurrentUser());
-        if (!authed) {
-            console.warn('[onboarding] no user; redirect to sign-in');
+        // 1) Ensure we have a user id
+        const user_id = await getCurrentUserId();
+        if (!user_id) {
+            console.warn('[onboarding] no user id; redirect to sign-in');
             navigate('/auth');
             return;
         }
 
-        const photos = Array.isArray(formState.photos) ? formState.photos : [];
+        // 2) Prepare inputs – array may contain File objects, data URLs, or existing URLs
+        const inputs = Array.isArray(formState.photos) ? formState.photos.filter(Boolean) : [];
 
+        // 3) Upload (returns array of public URLs; existing http URLs pass through unchanged)
+        const uploadedUrls = await uploadManyPhotos(inputs, user_id);
+
+        // 4) Save profile with the URL array and other fields
         const payload = {
-            user_id: authed.id,        // REQUIRED
-            email: authed.email ?? null,
+            user_id,
+            email: user?.email ?? null,
             full_name: formState.full_name ?? null,
             onboarding_complete: true,
             city: formState.city ?? null,
             lat: formState.lat ?? null,
             lng: formState.lng ?? null,
             bio: formState.bio ?? null,
-            photos: photos,
+            photos: uploadedUrls,
             gender: formState.gender ?? null,
             looking_for: formState.looking_for ?? null,
             date_of_birth: formState.date_of_birth ?? null,
@@ -572,8 +536,8 @@ const OnboardingPage = () => {
         };
 
         console.log('[Onboarding Finish] payload', payload);
-        await upsertProfile(payload);
-        return payload;
+        const saved = await upsertProfile(payload);
+        return saved;
     }
 
     const handleFinishOnboarding = async () => {

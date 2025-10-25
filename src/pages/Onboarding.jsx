@@ -1,16 +1,17 @@
 // DEV: keep this file formatted; mismatched braces will break Vite build.
 /* eslint react/prop-types: 0 */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser } from '../api/auth';
-import { upsertProfile } from '../api/profiles';
-
-/**
- * Get the current authenticated user or throw if not authenticated
- * @returns {Promise<User>} Supabase user object
- * @throws {Error} If not authenticated
- */
+import { upsertProfile, getProfile } from '../api/profiles';
+import { supabase } from '@/api/supabase';
+import { uploadProfilePhoto } from '@/utils/upload';
+import { saveCoordsToProfile } from '@/utils/location';
+import { ValidationError, validateOnboardingStep, validateOnboardingProfile } from '@/utils/validation';
+import { handleSupabaseError } from '@/utils/rlsErrorHandler';
+import { toE164 } from '@/utils/phone';
+import { createPageUrl } from '@/utils';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardBody } from '@/components/ui/card';
@@ -544,7 +545,7 @@ const OnboardingPage = () => {
     };
 
     async function finishOnboarding(formState) {
-        const authed = user ?? (await getCurrentSessionUser());
+        const authed = user ?? (await getCurrentUser());
         if (!authed) {
             console.warn('[onboarding] no user; redirect to sign-in');
             navigate('/auth');

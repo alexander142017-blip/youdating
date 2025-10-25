@@ -74,23 +74,6 @@ export async function getMyProfile() {
   return data;
 }
 
-export async function getMyProfile() {
-  const user_id = await getCurrentUserId();
-  if (!user_id) return null;
-
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('user_id', user_id)
-    .single();
-
-  if (error) {
-    console.error('[getMyProfile] error:', error);
-    return null;
-  }
-  return data;
-}
-
 export async function getProfileByUserId(userId) {
   const { data, error } = await supabase
     .from('profiles')

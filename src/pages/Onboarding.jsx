@@ -5,8 +5,9 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser, getCurrentUserId } from '@/api/auth';
 import { upsertProfile } from '@/api/profiles';
-import { uploadManyPhotos } from '@/api/storageUpload';
+import { uploadProfilePhoto } from '@/api/storage';
 import { saveCoordsToProfile } from '@/utils/location';
+import { debounce } from '@/utils/debounce';
 import { ValidationError, validateOnboardingStep, validateOnboardingProfile } from '@/utils/validation';
 import { handleSupabaseError } from '@/utils/rlsErrorHandler';
 import { toE164 } from '@/utils/phone';
@@ -110,7 +111,21 @@ const OnboardingPage = () => {
         setFormData(prev => ({ ...prev, ...patch }));
     }
 
-    const handleInputChange = async (field, value) => {
+    const debouncedSave = React.useMemo(
+        () =>
+            debounce(async (patch) => {
+                try {
+                    const user_id = await getCurrentUserId();
+                    if (!user_id) return;
+                    await upsertProfile({ user_id, ...patch });
+                } catch (e) {
+                    console.error('[debouncedSave] failed:', e);
+                }
+            }, 600),
+        []
+    );
+
+    const handleInputChange = (field, value) => {
         // Clear error when user starts typing
         if (error) setError("");
         
@@ -120,77 +135,48 @@ const OnboardingPage = () => {
             [field]: value
         }));
         
-        // Save changes to server in background
-        try {
-            await savePatch({ [field]: value });
-        } catch (error) {
-            console.error(`Failed to save ${field} update:`, error);
-            // Don't show error to user since local state is updated
-        }
+        // Debounced save to server
+        debouncedSave({ [field]: value });
     };
 
     // Use the new RLS-compliant upload utility
 
-    async function onUploadPhoto(file) {
-        setError("");
-        setUploading(true);
-        
+    const handlePhotoUpload = async (event) => {
         try {
+            const file = event.target?.files?.[0];
+            if (!file) return;
+
+            if (file.size > 5 * 1024 * 1024) { // 5MB limit
+                throw new Error(`File ${file.name} is too large. Maximum size is 5MB.`);
+            }
+            if (!file.type.startsWith('image/')) {
+                throw new Error(`File ${file.name} is not an image.`);
+            }
+
             const user_id = await getCurrentUserId();
             if (!user_id) throw new Error('Not authenticated');
-            
-            // Enforce max 6 photos
+
             const current = Array.isArray(formData.photos) ? formData.photos : [];
             if (current.length >= 6) {
                 throw new Error("You can upload up to 6 photos.");
             }
+
+            setUploading(true);
+            const publicUrl = await uploadProfilePhoto(file);
             
-            // Upload the photo and get URL
-            const urls = await uploadManyPhotos([file], user_id);
-            const url = urls[0];
-            
-            // Save the new photos array
-            await savePatch({ 
-                photos: [...current, url] 
+            // Local first for snappy UI, then background save
+            setFormData(prev => {
+                const nextPhotos = [...(prev.photos ?? []), publicUrl];
+                upsertProfile({ user_id, photos: nextPhotos }).catch(console.error);
+                return { ...prev, photos: nextPhotos };
             });
-            
-        } catch (error) {
-            setError(error.message);
-            console.error('[Onboarding.onUploadPhoto] error:', error);
-            throw error; // Re-throw for the UI handler
-        } finally {
-            setUploading(false);
-        }
-    }
-
-    const handlePhotoUpload = async (event) => {
-        const files = Array.from(event.target.files);
-        if (files.length === 0) return;
-
-        try {
-            // Validate files
-            for (const file of files) {
-                if (file.size > 5 * 1024 * 1024) { // 5MB limit
-                    throw new Error(`File ${file.name} is too large. Maximum size is 5MB.`);
-                }
-                if (!file.type.startsWith('image/')) {
-                    throw new Error(`File ${file.name} is not an image.`);
-                }
-            }
-
-            // Upload files one by one to avoid overwhelming the UI
-            for (const file of files) {
-                await onUploadPhoto(file);
-            }
 
         } catch (err) {
             console.error("Photo upload error:", err);
             setError(err.message || "Failed to upload photo. Please try again.");
         } finally {
-            // Reset file input
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
+            setUploading(false);
+            if (event?.target) event.target.value = '';
         }
     };
 

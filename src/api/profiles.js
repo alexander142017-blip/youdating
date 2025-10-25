@@ -42,7 +42,14 @@ export async function fetchMyProfile(user_id) {
     .eq('user_id', user_id)
     .single();
 
-  if (error && error.code !== 'PGRST116') { // 406/No Rows can vary by version; ignore "no rows"
+  // Ignore "no rows" errors by checking code and message (code can vary by version)
+  if (
+    error &&
+    !(
+      error.code === 'PGRST116' ||
+      (typeof error.message === 'string' && error.message.toLowerCase().includes('no rows'))
+    )
+  ) {
     console.error('[Fetch Profile] error:', error);
     throw error;
   }

@@ -1,25 +1,32 @@
 import { supabase } from './supabase';
 
 /**
- * Returns the current authed user (or null).
- * Safe for both client and server components.
+ * Returns the current authenticated user (or null) using Supabase v2 APIs.
+ * This is the canonical helper used across the app.
  */
 export async function getCurrentSessionUser() {
-  const { data, error } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getSession();
   if (error) {
-    console.error('[auth] getUser error:', error);
+    console.error('[auth] getSession error:', error);
     return null;
   }
-  return data?.user ?? null;
+  return data?.session?.user ?? null;
 }
 
 /**
- * Ensures a user is signed in, throws otherwise.
+ * Back-compat alias for older call sites.
+ * Do NOT remove. Keep this exported so any older imports don't crash.
  */
-export async function requireAuthedUser() {
-  const user = await getCurrentSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  return user;
+export async function getCurrentUser() {
+  return getCurrentSessionUser();
+}
+
+/**
+ * Convenience: get current user id (string | null)
+ */
+export async function getCurrentUserId() {
+  const u = await getCurrentSessionUser();
+  return u?.id ?? null;
 }
 
 /**
@@ -30,4 +37,13 @@ export function onAuthChange(callback) {
     callback(session?.user ?? null);
   });
   return () => sub?.subscription?.unsubscribe();
+}
+
+/**
+ * Ensures a user is signed in, throws otherwise.
+ */
+export async function requireAuthedUser() {
+  const user = await getCurrentSessionUser();
+  if (!user) throw new Error('Not authenticated');
+  return user;
 }

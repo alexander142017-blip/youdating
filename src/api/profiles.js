@@ -20,8 +20,6 @@ export async function getProfile({ userId, email }) {
 import { supabase } from './supabase';
 import { getCurrentUserId } from './auth';
 
-import { supabase } from './supabase';
-import { getCurrentUserId } from './auth';
 
 export async function upsertProfile(input = {}) {
   // Guarantee user_id is present (from param or session)

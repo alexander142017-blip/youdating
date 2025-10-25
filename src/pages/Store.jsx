@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Store, Star, Crown, Zap, CheckCircle, Loader2 } from "lucide-react";
-import { getCurrentSessionUser, getCurrentUser } from '@/api/auth';
+import { getCurrentUser, getCurrentUserId } from '@/api/auth';
 import { createPurchase } from "../api/purchases";
 
 export default function StorePage() {

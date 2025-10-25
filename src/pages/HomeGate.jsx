@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import { getCurrentUser } from '../api/auth';
-import { upsertProfile, fetchMyProfile } from '../api/profiles';
+import { upsertProfile } from '@/api/profiles';
 
 /**
  * Ensure a profile exists for the authenticated user
@@ -16,7 +16,7 @@ async function ensureProfile(user) {
   try {
     console.log('[HOMEGATE] Checking for existing profile for user:', user_id);
     
-    const existing = await fetchMyProfile(user_id);
+    const existing = await upsertProfile({ user_id });
     
     if (existing) {
       console.log('[HOMEGATE] Found existing profile:', existing);

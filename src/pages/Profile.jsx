@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { User, Edit, Settings, Camera, MapPin, CheckCircle, Loader2, Target, AlertCircle } from "lucide-react";
-import { getCurrentSessionUser } from "../api/auth";
+import { getCurrentUser, getCurrentUserId } from '@/api/auth';
 import { upsertProfile } from "../api/profiles";
 import { saveCoordsToProfile } from "../utils/location";
 
@@ -36,7 +36,7 @@ export default function ProfilePage() {
       setError('');
       
       // Get current user (auth only)
-      const user = await getCurrentSessionUser();
+      const user = await getCurrentUser();
       
       if (!user) {
         setError('No authenticated user found');
@@ -89,7 +89,7 @@ export default function ProfilePage() {
       setError('');
       setSuccessMessage('');
 
-      const authed = await getCurrentSessionUser();
+      const authed = await getCurrentUser();
       if (!authed) {
         setError('Please sign in to continue');
         return;

@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentSessionUser as getUser } from "./auth";
 
 /**
  * Get the current authenticated user session
@@ -29,13 +30,11 @@ export async function getSessionUser() {
  */
 export async function getCurrentSessionUser() {
   try {
-    const { data: { user }, error } = await supabase.auth.getUser();
-    
-    if (error) {
-      console.error("Current user error:", error);
-      throw error;
+    const user = await getUser(); // imported from auth.js
+    if (!user) {
+      console.error("No current user found");
+      return null;
     }
-
     return user;
   } catch (error) {
     console.error("Failed to get current user:", error);

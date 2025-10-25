@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { getCurrentSessionUser } from '@/api/auth';
+import { getCurrentSessionUser, getCurrentUser } from '@/api/auth';
 import { upsertProfile } from '@/api/profiles';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';

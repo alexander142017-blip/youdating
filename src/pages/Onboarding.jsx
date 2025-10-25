@@ -2,8 +2,8 @@
 /* eslint react/prop-types: 0 */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getCurrentSessionUser } from '../api/auth';
-import { upsertProfile } from '../api/profiles';
+import { getCurrentSessionUser, getCurrentUser } from '../api/auth';
+import { upsertProfile, getProfile } from '../api/profiles';
 import { uploadProfilePhoto } from '../api/storage';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -17,7 +17,7 @@ import { validateOnboardingStep, validateOnboardingProfile, ValidationError } fr
  * @returns {Promise<User>} Supabase user object
  * @throws {Error} If not authenticated
  */
-// Use imported getCurrentSessionUser instead
+import { supabase } from '@/api/supabase';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardBody } from '@/components/ui/card';
@@ -89,24 +89,11 @@ const TOTAL_STEPS = PHONE_VERIFICATION_REQUIRED ? 7 : 5;
 const OnboardingPage = () => {
     console.log('[ONBOARDING] Component rendering');
     const navigate = useNavigate();
+    const fileInputRef = useRef(null);
+    
     const [user, setUser] = useState(null);
     const [loadingUser, setLoadingUser] = useState(true);
     const [currentStep, setCurrentStep] = useState(1);
-
-    useEffect(() => {
-        let mounted = true;
-        (async () => {
-            const u = await getCurrentSessionUser();
-            if (mounted) {
-                setUser(u);
-                setLoadingUser(false);
-            }
-        })();
-        return () => { mounted = false; };
-    }, []);
-
-    if (loadingUser) return <div className="p-6">Loading...</div>;
-    if (!user) return <div className="p-6">Please sign in to continue.</div>;
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [locationLoading, setLocationLoading] = useState(false);
@@ -114,7 +101,6 @@ const OnboardingPage = () => {
     const [locationError, setLocationError] = useState("");
     const [coordinates, setCoordinates] = useState(null);
     const [detectedLocation, setDetectedLocation] = useState(null);
-    const fileInputRef = useRef(null);
     const [formData, setFormData] = useState({
         first_name: "",
         date_of_birth: "",
@@ -129,7 +115,6 @@ const OnboardingPage = () => {
         phone_verified: false,
         verification_code: ""
     });
-    
     const [phoneLoading, setPhoneLoading] = useState(false);
     const [codeLoading, setCodeLoading] = useState(false);
     const [phoneError, setPhoneError] = useState("");
@@ -138,19 +123,28 @@ const OnboardingPage = () => {
 
     const checkAuthStatus = useCallback(async () => {
         try {
-            const user = await getCurrentSessionUser();
-            if (!user) {
+            const u = await getCurrentSessionUser();
+            if (!u) {
                 navigate(createPageUrl("auth"));
+            } else {
+                setUser(u);
             }
         } catch (error) {
             console.error("Auth check failed:", error);
             navigate(createPageUrl("auth"));
+        } finally {
+            setLoadingUser(false);
         }
     }, [navigate]);
 
     useEffect(() => {
         checkAuthStatus();
     }, [checkAuthStatus]);
+
+    if (loadingUser) return <div className="p-6">Loading...</div>;
+    if (!user) return <div className="p-6">Please sign in to continue.</div>;
+
+
 
     async function savePatch(patch) {
         const user = await getCurrentUser();

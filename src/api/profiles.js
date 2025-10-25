@@ -30,3 +30,17 @@ export async function upsertProfile(input = {}) {
   }
   return data?.[0] ?? null;
 }
+
+export async function fetchProfileByUserId(user_id) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('user_id', user_id)
+    .single();
+
+  if (error && error.code !== 'PGRST116') { // 406/No rows, adjust if needed
+    console.error('[profiles.fetchProfileByUserId] error:', error);
+    throw error;
+  }
+  return data ?? null;
+}

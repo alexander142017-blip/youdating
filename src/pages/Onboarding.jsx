@@ -117,7 +117,7 @@ const OnboardingPage = () => {
 
     const checkAuthStatus = useCallback(async () => {
         try {
-            const u = await getCurrentSessionUser();
+            const u = await getCurrentUser();
             if (!u) {
                 navigate(createPageUrl("auth"));
             } else {

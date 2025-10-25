@@ -15,7 +15,7 @@ export async function getCurrentSessionUser() {
 
 /**
  * Back-compat alias for older call sites.
- * Do NOT remove. Keep this exported so any older imports don't crash.
+ * Do NOT remove: kept to avoid breaking older imports. Prefer getCurrentSessionUser() moving forward.
  */
 export async function getCurrentUser() {
   return getCurrentSessionUser();

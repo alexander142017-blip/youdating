@@ -14,7 +14,7 @@ import {
   Bell,
   Settings
 } from "lucide-react";
-import { getCurrentSessionUser } from "@/api/auth";
+import { getCurrentUser } from "@/api/auth";
 import { useQuery } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 

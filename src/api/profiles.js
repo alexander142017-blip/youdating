@@ -17,7 +17,6 @@ export async function getProfile({ userId, email }) {
   return null;
 }
 
-import { supabase } from './supabase';
 import { getCurrentUserId } from './auth';
 
 

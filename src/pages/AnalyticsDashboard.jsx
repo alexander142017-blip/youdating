@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import PropTypes from "prop-types";
-import { getCurrentSessionUser } from '@/api/auth';
+import { getCurrentUser } from '@/api/auth';
 import { supabase } from '@/api/supabase';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';

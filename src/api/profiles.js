@@ -1,51 +1,30 @@
 import { supabase } from './supabase';
 
-/**
- * Gets a profile by user_id or email
- */
-export async function getProfile({ userId, email }) {
-  if (userId) {
-    const { data, error } = await supabase.from('profiles').select('*').eq('user_id', userId).single();
-    if (error) throw error;
-    return data;
-  }
-  if (email) {
-    const { data, error } = await supabase.from('profiles').select('*').eq('email', email).single();
-    if (error) throw error;
-    return data;
-  }
-  return null;
-}
-
-import { supabase } from './supabase';
-import { getCurrentUserId } from './auth';
-
-
-export async function upsertProfile(input = {}) {
-  // Guarantee user_id is present (from param or session)
-  const user_id = input.user_id ?? (await getCurrentUserId());
-  if (!user_id) {
-    console.error('[UPsert Profile] missing user_id; input=', input);
+// Central, schema-aligned upsert.
+// payload must include: user_id, and only real columns from `public.profiles`.
+export async function upsertProfile(payload) {
+  if (!payload?.user_id) {
     throw new Error('Missing user_id in profile payload');
   }
 
-  const payload = {
-    user_id,
-    email: input.email ?? null,
-    full_name: input.full_name ?? null,
-    onboarding_complete: !!input.onboarding_complete,
-    city: input.city ?? null,
-    lat: input.lat ?? null,
-    lng: input.lng ?? null,
-    bio: input.bio ?? null,
-    photos: Array.isArray(input.photos) ? input.photos : [],
+  // Only keep whitelisted columns to avoid 400s from PostgREST
+  const clean = {
+    user_id: payload.user_id,
+    email: payload.email ?? null,
+    full_name: payload.full_name ?? null,
+    onboarding_complete: !!payload.onboarding_complete,
+    city: payload.city ?? null,
+    lat: payload.lat ?? null,
+    lng: payload.lng ?? null,
+    bio: payload.bio ?? null,
+    photos: Array.isArray(payload.photos) ? payload.photos : [],
   };
 
-  console.log('[SAVE PROFILE] payload', payload);
+  console.log('[SAVE PROFILE] payload', clean);
 
   const { data, error } = await supabase
     .from('profiles')
-    .upsert([payload], { onConflict: 'user_id', ignoreDuplicates: false })
+    .upsert([clean], { onConflict: 'user_id', ignoreDuplicates: false })
     .select();
 
   if (error) {
@@ -55,29 +34,24 @@ export async function upsertProfile(input = {}) {
   return data?.[0] ?? null;
 }
 
-export async function getMyProfile() {
-  const user_id = await getCurrentUserId();
-  if (!user_id) return null;
-
+// Fetch profile by current user_id (helper for pages)
+export async function fetchMyProfile(user_id) {
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('user_id', user_id)
     .single();
 
-  if (error) {
-    console.error('[getMyProfile] error:', error);
-    return null;
+  // Ignore "no rows" errors by checking code and message (code can vary by version)
+  if (
+    error &&
+    !(
+      error.code === 'PGRST116' ||
+      (typeof error.message === 'string' && error.message.toLowerCase().includes('no rows'))
+    )
+  ) {
+    console.error('[Fetch Profile] error:', error);
+    throw error;
   }
-  return data;
-}
-
-export async function getProfileByUserId(userId) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
-  if (error) throw error;
-  return data;
+  return data ?? null;
 }

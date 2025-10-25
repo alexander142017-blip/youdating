@@ -1,49 +1,20 @@
 import { supabase } from './supabase';
 
-/**
- * Returns the current authenticated user (or null) using Supabase v2 APIs.
- * This is the canonical helper used across the app.
- */
-export async function getCurrentSessionUser() {
-  const { data, error } = await supabase.auth.getSession();
-  if (error) {
-    console.error('[auth] getSession error:', error);
-    return null;
-  }
-  return data?.session?.user ?? null;
-}
-
-/**
- * Back-compat alias for older call sites.
- * Do NOT remove. Keep this exported so any older imports don't crash.
- */
+// Returns the full Supabase user object (or null)
 export async function getCurrentUser() {
-  return getCurrentSessionUser();
+  const { data } = await supabase.auth.getUser();
+  return data?.user ?? null;
 }
 
-/**
- * Convenience: get current user id (string | null)
- */
+// Returns the authed user's UUID (or null)
 export async function getCurrentUserId() {
-  const u = await getCurrentSessionUser();
-  return u?.id ?? null;
+  const user = await getCurrentUser();
+  return user?.id ?? null;
 }
 
-/**
- * Subscribe to auth changes. Returns an unsubscribe function.
- */
-export function onAuthChange(callback) {
-  const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-    callback(session?.user ?? null);
-  });
-  return () => sub?.subscription?.unsubscribe();
-}
-
-/**
- * Ensures a user is signed in, throws otherwise.
- */
-export async function requireAuthedUser() {
-  const user = await getCurrentSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  return user;
+// Optional helper: throws when no user
+export async function requireUserId() {
+  const id = await getCurrentUserId();
+  if (!id) throw new Error('No authenticated user. Please sign in again.');
+  return id;
 }

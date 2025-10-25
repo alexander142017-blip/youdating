@@ -1,26 +1,16 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { visualizer } from 'rollup-plugin-visualizer';
 import path from 'path';
 
 export default defineConfig({
-  base: '/',
-  plugins: [
-    react(), 
-    visualizer({ filename: "stats.html", open: false })
-  ],
+  plugins: [react()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src')
-    }
-  },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: undefined, // disable aggressive vendor chunk splitting
-      },
+      '@': path.resolve(__dirname, './src'),
     },
-    minify: 'esbuild',
-    target: 'esnext',
+    dedupe: ['react', 'react-dom'],
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom'],
   },
 });

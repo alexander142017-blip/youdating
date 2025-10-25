@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import { getCurrentUserId } from './auth';
 
 export async function upsertProfile(input = {}) {
-  const user_id = input.user_id ?? (await getCurrentUserId());
+  const user_id = input.user_id || (await getCurrentUserId());
   if (!user_id) throw new Error('Missing user_id in profile payload');
 
   const payload = {

@@ -17,11 +17,7 @@ import { validateOnboardingStep, validateOnboardingProfile, ValidationError } fr
  * @returns {Promise<User>} Supabase user object
  * @throws {Error} If not authenticated
  */
-async function getCurrentUser() {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-  return user;
-}
+// Use imported getCurrentSessionUser instead
 
 import { Button } from '@/components/ui/button';
 import { Card, CardBody } from '@/components/ui/card';

@@ -11,7 +11,6 @@ import { upsertProfile } from '../api/profiles';
  * @returns {Promise<User>} Supabase user object
  * @throws {Error} If not authenticated
  */
-import { supabase } from '@/api/supabase';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardBody } from '@/components/ui/card';

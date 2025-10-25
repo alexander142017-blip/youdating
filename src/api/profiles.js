@@ -1,28 +1,37 @@
+// src/api/profiles.js
 import { supabase } from './supabase';
+import { getCurrentUserId } from './auth';
 
 /**
- * Gets a profile by user_id or email
+ * Get a profile by user_id or email
  */
 export async function getProfile({ userId, email }) {
   if (userId) {
-    const { data, error } = await supabase.from('profiles').select('*').eq('user_id', userId).single();
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
     if (error) throw error;
     return data;
   }
   if (email) {
-    const { data, error } = await supabase.from('profiles').select('*').eq('email', email).single();
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('email', email)
+      .single();
     if (error) throw error;
     return data;
   }
   return null;
 }
 
-import { supabase } from './supabase';
-import { getCurrentUserId } from './auth';
-
-
+/**
+ * Upsert current user's profile. Ensures user_id is present.
+ * Only valid columns are sent to the DB.
+ */
 export async function upsertProfile(input = {}) {
-  // Guarantee user_id is present (from param or session)
   const user_id = input.user_id ?? (await getCurrentUserId());
   if (!user_id) {
     console.error('[UPsert Profile] missing user_id; input=', input);
@@ -55,6 +64,9 @@ export async function upsertProfile(input = {}) {
   return data?.[0] ?? null;
 }
 
+/**
+ * Get the current user's profile (or null).
+ */
 export async function getMyProfile() {
   const user_id = await getCurrentUserId();
   if (!user_id) return null;
@@ -69,15 +81,5 @@ export async function getMyProfile() {
     console.error('[getMyProfile] error:', error);
     return null;
   }
-  return data;
-}
-
-export async function getProfileByUserId(userId) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
-  if (error) throw error;
   return data;
 }

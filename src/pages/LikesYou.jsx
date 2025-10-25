@@ -1,6 +1,6 @@
 
 import { useState, useMemo } from "react";
-import { getCurrentSessionUser, getCurrentUser } from '@/api/auth';
+import { getCurrentUser, getCurrentUserId } from '@/api/auth';
 import { supabase } from '@/api/supabase';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardTitle, CardDescription } from "@/components/ui/card";

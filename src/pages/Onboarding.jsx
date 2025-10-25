@@ -3,8 +3,8 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCurrentUser } from '../api/auth';
-import { upsertProfile, getProfile } from '../api/profiles';
+import { getCurrentUser, getCurrentUserId } from '@/api/auth';
+import { upsertProfile } from '@/api/profiles';
 import { supabase } from '@/api/supabase';
 import { uploadProfilePhoto } from '@/utils/upload';
 import { saveCoordsToProfile } from '@/utils/location';
@@ -14,7 +14,7 @@ import { toE164 } from '@/utils/phone';
 import { createPageUrl } from '@/utils';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardBody } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar } from '@/components/ui/avatar';
@@ -33,7 +33,7 @@ async function ensureProfile(session) {
     console.log('[ONBOARDING] Checking for existing profile for user:', uid);
     
     // Try to get existing profile using centralized API
-    const profile = await getProfile({ userId: uid });
+    const profile = await upsertProfile({ user_id: uid });
     
     if (profile) {
       console.log('[ONBOARDING] Found existing profile:', profile);

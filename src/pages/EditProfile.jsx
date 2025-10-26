@@ -1,8 +1,7 @@
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { getCurrentUser, getCurrentUserId } from '@/api/auth';
 import { upsertProfile } from '@/api/profiles';
 import { uploadProfilePhoto } from '@/api/storage';
-import { debounce } from '@/utils/debounce';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -49,35 +48,24 @@ export default function EditProfilePage() {
         },
     });
 
-    const debouncedSave = React.useMemo(
-        () =>
-            debounce(async (patch) => {
-                try {
-                    const user_id = await getCurrentUserId();
-                    if (!user_id) return;
-                    await upsertProfile({ user_id, ...patch });
-                    queryClient.invalidateQueries({ queryKey: ['current-user'] });
-                    queryClient.invalidateQueries({ queryKey: ['current-user-edit'] });
-                } catch (e) {
-                    console.error('[debouncedSave] failed:', e);
-                }
-            }, 600),
-        [queryClient]
-    );
-
-    const saveProfile = async () => {
-        try {
+    const updateProfileMutation = useMutation({
+        mutationFn: async (profileData) => {
             const user_id = await getCurrentUserId();
             if (!user_id) throw new Error('Not authenticated');
             
-            await upsertProfile({ user_id, ...formData });
+            return await upsertProfile({ user_id, ...profileData });
+        },
+        onSuccess: () => {
             trackEvent(currentUser?.email, 'profileEdited');
             toast.success('Profile updated successfully!');
+            queryClient.invalidateQueries({ queryKey: ['current-user'] });
+            queryClient.invalidateQueries({ queryKey: ['current-user-edit'] });
             navigate(createPageUrl('Profile'));
-        } catch (error) {
+        },
+        onError: (error) => {
             toast.error('Failed to update profile.', { description: error.message });
         }
-    };
+    });
 
     const uploadFileMutation = useMutation({
         mutationFn: (_file) => {

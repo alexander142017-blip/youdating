@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { UserShape } from '../types/propTypes';
-import { getCurrentUser, getCurrentUserId } from '@/api/auth';
+import { getCurrentUser } from '@/api/auth';
 
 import { supabase } from '@/api/supabase';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';

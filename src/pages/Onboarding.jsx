@@ -89,28 +89,6 @@ const OnboardingPage = () => {
         }
     }, [navigate]);
 
-    useEffect(() => {
-        checkAuthStatus();
-    }, [checkAuthStatus]);
-
-    if (loadingUser) return <div className="p-6">Loading...</div>;
-    if (!user) return <div className="p-6">Please sign in to continue.</div>;
-
-
-
-    async function savePatch(patch) {
-        const user = await getCurrentUser();
-        // Only send changed fields plus required identifiers
-        const payload = {
-            user_id: user.id,
-            email: user.email ?? null,
-            onboarding_complete: false,
-            ...patch
-        };
-        await upsertProfile(payload);
-        setFormData(prev => ({ ...prev, ...patch }));
-    }
-
     const debouncedSave = React.useMemo(
         () =>
             debounce(async (patch) => {
@@ -124,6 +102,13 @@ const OnboardingPage = () => {
             }, 600),
         []
     );
+
+    useEffect(() => {
+        checkAuthStatus();
+    }, [checkAuthStatus]);
+
+    if (loadingUser) return <div className="p-6">Loading...</div>;
+    if (!user) return <div className="p-6">Please sign in to continue.</div>;
 
     const handleInputChange = (field, value) => {
         // Clear error when user starts typing
@@ -501,7 +486,14 @@ const OnboardingPage = () => {
         const inputs = Array.isArray(formState.photos) ? formState.photos.filter(Boolean) : [];
 
         // 3) Upload (returns array of public URLs; existing http URLs pass through unchanged)
-        const uploadedUrls = await uploadManyPhotos(inputs, user_id);
+        const uploadedUrls = await Promise.all(
+            inputs.map(async (input) => {
+                if (typeof input === 'string' && input.startsWith('http')) {
+                    return input; // Already a URL, pass through
+                }
+                return await uploadProfilePhoto(input);
+            })
+        );
 
         // 4) Save profile with the URL array and other fields
         const payload = {

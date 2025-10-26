@@ -1,42 +1,85 @@
 import { supabase } from './supabase';
 
 /**
- * Returns the full Supabase user (or null)
+ * Returns the current session or null, never throws
  */
-export async function getCurrentUser() {
-  const { data, error } = await supabase.auth.getUser();
-  if (error) {
-    console.error('[auth.getCurrentUser] error:', error);
+export async function getSession() {
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      console.warn('[auth.getSession] error:', error);
+      return null;
+    }
+    return data?.session ?? null;
+  } catch (err) {
+    console.warn('[auth.getSession] error:', err);
     return null;
   }
-  return data?.user ?? null;
 }
 
 /**
- * Returns the current user id (or null)
+ * Returns the current user or null, never throws
+ */
+export async function getCurrentUser() {
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      console.warn('[auth.getCurrentUser] error:', error);
+      return null;
+    }
+    return data?.user ?? null;
+  } catch (err) {
+    console.warn('[auth.getCurrentUser] error:', err);
+    return null;
+  }
+}
+
+/**
+ * Returns the current user id or null, never throws
  */
 export async function getCurrentUserId() {
-  const user = await getCurrentUser();
-  return user?.id ?? null;
+  try {
+    const user = await getCurrentUser();
+    return user?.id ?? null;
+  } catch (err) {
+    console.warn('[auth.getCurrentUserId] error:', err);
+    return null;
+  }
 }
 
 /**
- * Minimal identity you can safely pass around
+ * Subscribe to auth state changes, returns unsubscribe function
  */
-export async function getAuthedIdentity() {
-  const user = await getCurrentUser();
-  if (!user) return null;
-  return {
-    id: user.id,
-    email: user.email ?? null,
-  };
+export function onAuthStateChange(callback) {
+  try {
+    const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+      try {
+        const user = session?.user ?? null;
+        await callback({ event, session, user });
+      } catch (err) {
+        console.warn('[auth.onAuthStateChange:callback] error:', err);
+      }
+    });
+    return data.subscription.unsubscribe;
+  } catch (err) {
+    console.warn('[auth.onAuthStateChange] error:', err);
+    return () => {}; // Safe no-op unsubscribe
+  }
 }
 
 /**
- * Utility guards
+ * Safe sign out wrapper
  */
-export async function requireUserId() {
-  const id = await getCurrentUserId();
-  if (!id) throw new Error('Not authenticated');
-  return id;
+export async function signOut() {
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.warn('[auth.signOut] error:', error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[auth.signOut] error:', err);
+    return false;
+  }
 }

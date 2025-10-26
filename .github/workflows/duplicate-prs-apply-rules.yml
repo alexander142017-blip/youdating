@@ -5,7 +5,7 @@ on:
       actor:
         description: 'PR author login to process (default: the user who triggers the workflow)'
         required: false
-        default: '${{ github.actor }}'
+        default: ''
       hours:
         description: 'Look for PRs closed within the last N hours (ignored if pr_numbers provided)'
         required: false
@@ -34,7 +34,7 @@ name: Duplicate closed PRs and apply updated rules (with optional auto-approve /
 jobs:
   duplicate-and-verify:
     runs-on: ubuntu-latest
-    environment: github-actions
+    environment: production
     env:
       REPO: ${{ github.repository }}
       OWNER: ${{ github.repository_owner }}

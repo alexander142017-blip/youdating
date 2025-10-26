@@ -1,12 +1,8 @@
 import { supabase } from './supabase';
-import { getCurrentUserId } from './auth';
 
-export async function upsertProfile(input = {}) {
-  const user_id = input.user_id || (await getCurrentUserId());
-  if (!user_id) throw new Error('Missing user_id in profile payload');
-
+export async function upsertProfile(input) {
   const payload = {
-    user_id,
+    user_id: input.user_id, // REQUIRED
     email: input.email ?? null,
     full_name: input.full_name ?? null,
     onboarding_complete: !!input.onboarding_complete,
@@ -17,7 +13,7 @@ export async function upsertProfile(input = {}) {
     photos: Array.isArray(input.photos) ? input.photos : [],
   };
 
-  console.log('[SAVE PROFILE] payload', payload);
+  if (!payload.user_id) throw new Error('Missing user_id in profile payload');
 
   const { data, error } = await supabase
     .from('profiles')

@@ -5,58 +5,16 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser, getCurrentUserId } from '@/api/auth';
 import { upsertProfile } from '@/api/profiles';
-import { supabase } from '@/api/supabase';
-import { uploadProfilePhoto } from '@/utils/upload';
+import { uploadProfilePhoto } from '@/api/storage';
 import { saveCoordsToProfile } from '@/utils/location';
+import { debounce } from '@/utils/debounce';
 import { ValidationError, validateOnboardingStep, validateOnboardingProfile } from '@/utils/validation';
 import { handleSupabaseError } from '@/utils/rlsErrorHandler';
 import { toE164 } from '@/utils/phone';
 import { createPageUrl } from '@/utils';
+import { supabase } from '@/api/supabase';
 
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Avatar } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 
-/**
- * Ensure a profile exists for the authenticated user
- * @param {Object} session - Supabase session object
- * @returns {Object} - Profile data (existing or newly created)
- */
-async function ensureProfile(session) {
-  const uid = session.user.id;
-  const email = session.user.email ?? null;
-  
-  try {
-    console.log('[ONBOARDING] Checking for existing profile for user:', uid);
-    
-    // Try to get existing profile using centralized API
-    const profile = await upsertProfile({ user_id: uid });
-    
-    if (profile) {
-      console.log('[ONBOARDING] Found existing profile:', profile);
-      return profile;
-    }
-
-    console.log('[ONBOARDING] No profile found, creating minimal profile for user:', uid);
-    
-    // Create new profile using centralized API
-    const inserted = await upsertProfile({
-      user_id: uid,
-      email,
-      onboarding_complete: false,
-      full_name: session.user.user_metadata?.full_name ?? null
-    });
-    
-    console.log('[ONBOARDING] Created new profile:', inserted);
-    return inserted;
-  } catch (error) {
-    console.error('[PROFILE ERROR]', error?.message || error);
-    throw error;
-  }
-}
 import { 
   Loader2, 
   ArrowLeft, 
@@ -131,6 +89,20 @@ const OnboardingPage = () => {
         }
     }, [navigate]);
 
+    const debouncedSave = React.useMemo(
+        () =>
+            debounce(async (patch) => {
+                try {
+                    const user_id = await getCurrentUserId();
+                    if (!user_id) return;
+                    await upsertProfile({ user_id, ...patch });
+                } catch (e) {
+                    console.error('[debouncedSave] failed:', e);
+                }
+            }, 600),
+        []
+    );
+
     useEffect(() => {
         checkAuthStatus();
     }, [checkAuthStatus]);
@@ -138,22 +110,7 @@ const OnboardingPage = () => {
     if (loadingUser) return <div className="p-6">Loading...</div>;
     if (!user) return <div className="p-6">Please sign in to continue.</div>;
 
-
-
-    async function savePatch(patch) {
-        const user = await getCurrentUser();
-        // Only send changed fields plus required identifiers
-        const payload = {
-            user_id: user.id,
-            email: user.email ?? null,
-            onboarding_complete: false,
-            ...patch
-        };
-        await upsertProfile(payload);
-        setFormData(prev => ({ ...prev, ...patch }));
-    }
-
-    const handleInputChange = async (field, value) => {
+    const handleInputChange = (field, value) => {
         // Clear error when user starts typing
         if (error) setError("");
         
@@ -163,76 +120,48 @@ const OnboardingPage = () => {
             [field]: value
         }));
         
-        // Save changes to server in background
-        try {
-            await savePatch({ [field]: value });
-        } catch (error) {
-            console.error(`Failed to save ${field} update:`, error);
-            // Don't show error to user since local state is updated
-        }
+        // Debounced save to server
+        debouncedSave({ [field]: value });
     };
 
     // Use the new RLS-compliant upload utility
 
-    async function onUploadPhoto(file) {
-        setError("");
-        setUploading(true);
-        
+    const handlePhotoUpload = async (event) => {
         try {
-            const user = await getCurrentUser();
-            
-            // Enforce max 6 photos
+            const file = event.target?.files?.[0];
+            if (!file) return;
+
+            if (file.size > 5 * 1024 * 1024) { // 5MB limit
+                throw new Error(`File ${file.name} is too large. Maximum size is 5MB.`);
+            }
+            if (!file.type.startsWith('image/')) {
+                throw new Error(`File ${file.name} is not an image.`);
+            }
+
+            const user_id = await getCurrentUserId();
+            if (!user_id) throw new Error('Not authenticated');
+
             const current = Array.isArray(formData.photos) ? formData.photos : [];
             if (current.length >= 6) {
                 throw new Error("You can upload up to 6 photos.");
             }
+
+            setUploading(true);
+            const publicUrl = await uploadProfilePhoto(file);
             
-            // Upload the photo
-            const { url } = await uploadProfilePhoto(file, user.id);
-            
-            // Save the new photos array
-            await savePatch({ 
-                photos: [...current, url] 
+            // Local first for snappy UI, then background save
+            setFormData(prev => {
+                const nextPhotos = [...(prev.photos ?? []), publicUrl];
+                upsertProfile({ user_id, photos: nextPhotos }).catch(console.error);
+                return { ...prev, photos: nextPhotos };
             });
-            
-        } catch (error) {
-            const handledError = handleSupabaseError(error, 'photo upload');
-            setError(handledError.message);
-            console.error('Photo upload error:', error);
-            throw error; // Re-throw for the UI handler
-        } finally {
-            setUploading(false);
-        }
-    }
-
-    const handlePhotoUpload = async (event) => {
-        const files = Array.from(event.target.files);
-        if (files.length === 0) return;
-
-        try {
-            // Validate files
-            for (const file of files) {
-                if (file.size > 5 * 1024 * 1024) { // 5MB limit
-                    throw new Error(`File ${file.name} is too large. Maximum size is 5MB.`);
-                }
-                if (!file.type.startsWith('image/')) {
-                    throw new Error(`File ${file.name} is not an image.`);
-                }
-            }
-
-            // Upload files one by one to avoid overwhelming the UI
-            for (const file of files) {
-                await onUploadPhoto(file);
-            }
 
         } catch (err) {
             console.error("Photo upload error:", err);
             setError(err.message || "Failed to upload photo. Please try again.");
         } finally {
-            // Reset file input
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
+            setUploading(false);
+            if (event?.target) event.target.value = '';
         }
     };
 
@@ -545,25 +474,38 @@ const OnboardingPage = () => {
     };
 
     async function finishOnboarding(formState) {
-        const authed = user ?? (await getCurrentUser());
-        if (!authed) {
-            console.warn('[onboarding] no user; redirect to sign-in');
+        // 1) Ensure we have a user id
+        const user_id = await getCurrentUserId();
+        if (!user_id) {
+            console.warn('[onboarding] no user id; redirect to sign-in');
             navigate('/auth');
             return;
         }
 
-        const photos = Array.isArray(formState.photos) ? formState.photos : [];
+        // 2) Prepare inputs – array may contain File objects, data URLs, or existing URLs
+        const inputs = Array.isArray(formState.photos) ? formState.photos.filter(Boolean) : [];
 
+        // 3) Upload (returns array of public URLs; existing http URLs pass through unchanged)
+        const uploadedUrls = await Promise.all(
+            inputs.map(async (input) => {
+                if (typeof input === 'string' && input.startsWith('http')) {
+                    return input; // Already a URL, pass through
+                }
+                return await uploadProfilePhoto(input);
+            })
+        );
+
+        // 4) Save profile with the URL array and other fields
         const payload = {
-            user_id: authed.id,        // REQUIRED
-            email: authed.email ?? null,
+            user_id,
+            email: user?.email ?? null,
             full_name: formState.full_name ?? null,
             onboarding_complete: true,
             city: formState.city ?? null,
             lat: formState.lat ?? null,
             lng: formState.lng ?? null,
             bio: formState.bio ?? null,
-            photos: photos,
+            photos: uploadedUrls,
             gender: formState.gender ?? null,
             looking_for: formState.looking_for ?? null,
             date_of_birth: formState.date_of_birth ?? null,
@@ -572,8 +514,8 @@ const OnboardingPage = () => {
         };
 
         console.log('[Onboarding Finish] payload', payload);
-        await upsertProfile(payload);
-        return payload;
+        const saved = await upsertProfile(payload);
+        return saved;
     }
 
     const handleFinishOnboarding = async () => {

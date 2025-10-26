@@ -1,6 +1,7 @@
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { getCurrentUser, getCurrentUserId } from '@/api/auth';
 import { upsertProfile } from '@/api/profiles';
+import { uploadProfilePhoto } from '@/api/storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -48,9 +49,14 @@ export default function EditProfilePage() {
     });
 
     const updateProfileMutation = useMutation({
-        mutationFn: (updatedData) => upsertProfile({ ...currentUser, ...updatedData }),
+        mutationFn: async (profileData) => {
+            const user_id = await getCurrentUserId();
+            if (!user_id) throw new Error('Not authenticated');
+            
+            return await upsertProfile({ user_id, ...profileData });
+        },
         onSuccess: () => {
-            trackEvent(currentUser.email, 'profileEdited');
+            trackEvent(currentUser?.email, 'profileEdited');
             toast.success('Profile updated successfully!');
             queryClient.invalidateQueries({ queryKey: ['current-user'] });
             queryClient.invalidateQueries({ queryKey: ['current-user-edit'] });
@@ -58,7 +64,7 @@ export default function EditProfilePage() {
         },
         onError: (error) => {
             toast.error('Failed to update profile.', { description: error.message });
-        },
+        }
     });
 
     const uploadFileMutation = useMutation({
@@ -78,10 +84,38 @@ export default function EditProfilePage() {
         }
     });
 
-    const handlePhotoUpload = (event) => {
-        const file = event.target.files[0];
-        if (file) {
-            uploadFileMutation.mutate(file);
+    const handlePhotoUpload = async (e) => {
+        try {
+            const file = e.target?.files?.[0];
+            if (!file) return;
+
+            if (file.size > 5 * 1024 * 1024) { // 5MB limit
+                throw new Error(`File ${file.name} is too large. Maximum size is 5MB.`);
+            }
+            if (!file.type.startsWith('image/')) {
+                throw new Error(`File ${file.name} is not an image.`);
+            }
+
+            const user_id = await getCurrentUserId();
+            if (!user_id) throw new Error('No authed user');
+
+            if (formData.photos.length >= MAX_PHOTOS) {
+                throw new Error(`You can only have a maximum of ${MAX_PHOTOS} photos.`);
+            }
+
+            const publicUrl = await uploadProfilePhoto(file);
+
+            // Local first for snappy UI, then background save
+            setFormData(prev => {
+                const nextPhotos = [...(prev.photos ?? []), publicUrl];
+                upsertProfile({ user_id, photos: nextPhotos }).catch(console.error);
+                return { ...prev, photos: nextPhotos };
+            });
+        } catch (err) {
+            console.error('Photo upload error:', err);
+            toast.error('Photo upload failed: ' + (err.message || 'Please try again'));
+        } finally {
+            if (e?.target) e.target.value = '';
         }
     };
 

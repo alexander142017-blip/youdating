@@ -98,6 +98,17 @@ export function validateOnboardingProfile(profile) {
  * @returns {void} - Throws ValidationError if invalid
  */
 export function validateOnboardingStep(data, step) {
+  // Declare variables outside of cases
+  const birthDate = data.date_of_birth ? new Date(data.date_of_birth) : null;
+  const today = new Date();
+  const yearsOld = birthDate ? today.getFullYear() - birthDate.getFullYear() : 0;
+  const monthDiff = birthDate ? today.getMonth() - birthDate.getMonth() : 0;
+  let age = yearsOld;
+  
+  if (birthDate && (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate()))) {
+    age--;
+  }
+  
   switch (step) {
     case 1:
       if (!data.first_name?.trim()) {
@@ -114,13 +125,6 @@ export function validateOnboardingStep(data, step) {
     case 2:
       if (!data.date_of_birth) {
         throw new ValidationError('Please select your date of birth', 'date_of_birth');
-      }
-      const birthDate = new Date(data.date_of_birth);
-      const today = new Date();
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-        age--;
       }
       if (age < MIN_AGE) {
         throw new ValidationError(`You must be at least ${MIN_AGE} years old to use YouDating`, 'date_of_birth');

@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { User, Edit, Settings, Camera, MapPin, CheckCircle, Loader2, Target, AlertCircle } from "lucide-react";
 import { getCurrentUser, getCurrentUserId } from '@/api/auth';
 import { upsertProfile } from "../api/profiles";
 import { saveCoordsToProfile } from "../utils/location";
+import { debounce } from "@/utils/debounce";
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState(null);
@@ -71,6 +72,20 @@ export default function ProfilePage() {
     }
   };
 
+  const debouncedSave = useMemo(
+    () =>
+      debounce(async (patch) => {
+        try {
+          const user_id = await getCurrentUserId();
+          if (!user_id) return;
+          await upsertProfile({ user_id, ...patch });
+        } catch (e) {
+          console.error('[debouncedSave] failed:', e);
+        }
+      }, 600),
+    []
+  );
+
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
@@ -81,6 +96,9 @@ export default function ProfilePage() {
     if (successMessage) {
       setSuccessMessage('');
     }
+
+    // Debounced save to server
+    debouncedSave({ [field]: value });
   };
 
   const handleSave = async () => {

@@ -1,4 +1,5 @@
 # Duplicate PRs, apply rules, verify build, optional auto-approve / auto-merge
+# Updated: Fixed all syntax issues
 on:
   workflow_dispatch:
     inputs:
